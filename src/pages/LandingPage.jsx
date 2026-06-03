@@ -400,7 +400,7 @@ export default function LandingPage() {
 
         {/* Fresh Fruits Collection */}
         <div id="fresh" className="mb-12">
-          <SectionHeader title="Fresh Fruits Collection" link="/products?category=fruits" />
+          <SectionHeader title="Our Top Picks" link="/products?category=fruits" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {freshArrivals.slice(0, 6).map((product) => (
               <ProductCard key={product._id} product={product} />
