@@ -19,7 +19,7 @@ import { AdminCustomers } from './pages/admin/AdminCustomers';
 import { AdminCoupons } from './pages/admin/AdminCoupons';
 
 // User imports
-import { UserDashboard } from './pages/user/UserDashboard';
+import { UserDashboard } from './pages/user/userDashboard';
 import { ProductListingPage } from './pages/user/ProductListingPage';
 import { ProductDetailPage } from './pages/user/ProductDetailPage';
 import { CartPage } from './pages/user/CartPage';
