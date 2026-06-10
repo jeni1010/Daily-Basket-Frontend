@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": "20.x",
+    "npm": "10.x"
   },
   "volta": {
-    "node": "18.17.0",
-    "npm": "9.6.7"
+    "node": "20.11.0",
+    "npm": "10.2.4"
   },
   "scripts": {
     "dev": "vite",
