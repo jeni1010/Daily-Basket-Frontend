@@ -17,6 +17,7 @@ async function getCartItemsFromAPI() {
     
     return items;
   } catch (error) {
+    console.error('Error fetching cart items:', error);
     return [];
   }
 }
@@ -66,23 +67,15 @@ function getCurrentUser() {
   let currentUser = null;
   
   try {
-    // Try 'user' first
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem('user') || 
+                    localStorage.getItem('userData') || 
+                    sessionStorage.getItem('user');
     if (userStr) {
       currentUser = JSON.parse(userStr);
     }
     
-    // If not found, try 'userData'
     if (!currentUser) {
-      const userDataStr = localStorage.getItem('userData');
-      if (userDataStr) {
-        currentUser = JSON.parse(userDataStr);
-      }
-    }
-    
-    // If still not found, try to decode token
-    if (!currentUser) {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       if (token) {
         try {
           const base64Url = token.split('.')[1];
@@ -90,26 +83,174 @@ function getCurrentUser() {
           const decodedToken = JSON.parse(atob(base64));
           if (decodedToken) {
             currentUser = {
-              id: decodedToken.id || decodedToken.userId,
-              name: decodedToken.name || decodedToken.username || decodedToken.full_name,
+              id: decodedToken.id || decodedToken.userId || decodedToken.sub,
+              name: decodedToken.name || decodedToken.username || decodedToken.full_name || decodedToken.fullName,
               email: decodedToken.email,
-              phone: decodedToken.phone || decodedToken.mobile
+              phone: decodedToken.phone || decodedToken.mobile || decodedToken.phoneNumber
             };
           }
         } catch (decodeError) {
-          // Silent fail
+          console.error('Error decoding token:', decodeError);
         }
       }
     }
   } catch (e) {
-    // Silent fail
+    console.error('Error getting current user:', e);
   }
   
   return currentUser;
 }
 
-// Create the customerApi object with all methods
+// Helper function to check if user is authenticated
+function isAuthenticated() {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  return !!token;
+}
+
+// Helper function to clear all auth data
+function clearAuthData() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  localStorage.removeItem('userData');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+}
+
 export const customerApi = {
+  // ==================== AUTH METHODS ====================
+  auth: {
+    login: async (email, password) => {
+      try {
+        const response = await apiRequest('/auth/signin', {
+          method: 'POST',
+          body: { email, password },
+        });
+        
+        console.log('Login response:', response);
+        
+        const token = response.token || response.accessToken || response.data?.token;
+        if (token) {
+          localStorage.setItem('token', token);
+          localStorage.setItem('authToken', token);
+          console.log('Token stored successfully');
+        }
+        
+        if (response.refreshToken) {
+          localStorage.setItem('refreshToken', response.refreshToken);
+        }
+        
+        const user = response.user || response.data?.user || response.data;
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
+        }
+        
+        return response;
+      } catch (error) {
+        console.error('Login error:', error);
+        throw error;
+      }
+    },
+    
+    register: async (userData) => {
+      try {
+        const response = await apiRequest('/auth/signup', {
+          method: 'POST',
+          body: {
+            name: userData.name,
+            email: userData.email,
+            password: userData.password,
+            passwordConfirm: userData.passwordConfirm || userData.password
+          },
+        });
+        
+        console.log('Register response:', response);
+        
+        const token = response.token || response.accessToken || response.data?.token;
+        if (token) {
+          localStorage.setItem('token', token);
+          localStorage.setItem('authToken', token);
+        }
+        
+        const user = response.user || response.data?.user || response.data;
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
+        }
+        
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    verifyOtp: async (email, otp) => {
+      try {
+        const response = await apiRequest('/auth/verify', {
+          method: 'POST',
+          body: { email, otp },
+        });
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    forgotPassword: async (email) => {
+      try {
+        const response = await apiRequest('/auth/forgotPass', {
+          method: 'POST',
+          body: { email },
+        });
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    resetPassword: async (email, otp, password, passwordConfirm) => {
+      try {
+        const response = await apiRequest('/auth/resetPass', {
+          method: 'POST',
+          body: { email, otp, password, passwordConfirm },
+        });
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    getMe: async () => {
+      try {
+        const response = await apiRequest('/auth/me', {
+          method: 'GET',
+        });
+        if (response && response.data) {
+          localStorage.setItem('user', JSON.stringify(response.data));
+        }
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
+    
+    logout: () => {
+      clearAuthData();
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/signin') {
+        window.location.href = '/signin';
+      }
+    },
+    
+    isAuthenticated: () => {
+      return isAuthenticated();
+    },
+    
+    getCurrentUser: () => {
+      return getCurrentUser();
+    },
+  },
+
   // ==================== PRODUCTS ====================
   getProducts: async (params = {}) => {
     const queryParams = new URLSearchParams();
@@ -127,12 +268,12 @@ export const customerApi = {
     
     try {
       const response = await apiRequest(`/customer/products?${queryParams.toString()}`);
-      
       if (response.products && Array.isArray(response.products)) return response.products;
       if (response.data && Array.isArray(response.data)) return response.data;
       if (Array.isArray(response)) return response;
       return [];
     } catch (error) {
+      console.error('Error fetching products:', error);
       return [];
     }
   },
@@ -154,6 +295,7 @@ export const customerApi = {
       if (Array.isArray(response)) return response;
       return [];
     } catch (error) {
+      console.error('Error fetching categories:', error);
       return [];
     }
   },
@@ -179,7 +321,6 @@ export const customerApi = {
     get: async () => {
       try {
         const response = await apiRequest('/customer/cart');
-        
         let items = [];
         if (response && response.items && Array.isArray(response.items)) {
           items = response.items;
@@ -188,9 +329,9 @@ export const customerApi = {
         } else if (response && response.cart && response.cart.items && Array.isArray(response.cart.items)) {
           items = response.cart.items;
         }
-        
         return { items: items, ...response };
       } catch (error) {
+        console.error('Error fetching cart:', error);
         return { items: [] };
       }
     },
@@ -255,7 +396,6 @@ export const customerApi = {
     get: async () => {
       try {
         const response = await apiRequest('/customer/wishlist');
-        
         let wishlistData = [];
         if (response && response.products && Array.isArray(response.products)) {
           wishlistData = response.products;
@@ -264,9 +404,9 @@ export const customerApi = {
         } else if (Array.isArray(response)) {
           wishlistData = response;
         }
-        
         return wishlistData;
       } catch (error) {
+        console.error('Error fetching wishlist:', error);
         return [];
       }
     },
@@ -305,10 +445,8 @@ export const customerApi = {
           throw new Error('Cannot create order: Cart is empty');
         }
         
-        // Get current user info from multiple sources
         const currentUser = getCurrentUser();
         
-        // Get address details
         let addressDetails = null;
         try {
           const addressesResponse = await customerApi.addresses.getAll();
@@ -320,13 +458,11 @@ export const customerApi = {
           } else if (Array.isArray(addressesResponse)) {
             addresses = addressesResponse;
           }
-          
           addressDetails = addresses.find(addr => (addr._id || addr.id) === addressId);
         } catch (addrError) {
-          // Silent fail
+          console.error('Error fetching address details:', addrError);
         }
         
-        // Calculate totals from cart items
         let subtotal = 0;
         const orderItems = cartItems.map(item => {
           const price = item.price || item.product_price || 0;
@@ -344,12 +480,10 @@ export const customerApi = {
           };
         });
         
-        // Calculate fees
         const shippingCharge = subtotal >= 200 ? 0 : 40;
         const taxAmount = Math.round(subtotal * 0.05);
         const grandTotal = subtotal + shippingCharge + taxAmount;
         
-        // Get customer info with proper fallbacks
         const customerName = currentUser?.name || 
                            currentUser?.full_name || 
                            currentUser?.username ||
@@ -357,17 +491,9 @@ export const customerApi = {
                            addressDetails?.name || 
                            "Guest";
         
-        const customerEmail = currentUser?.email || 
-                            addressDetails?.email || 
-                            "";
+        const customerEmail = currentUser?.email || addressDetails?.email || "";
+        const customerPhone = addressDetails?.phone || addressDetails?.mobile || currentUser?.phone || currentUser?.mobile || "";
         
-        const customerPhone = addressDetails?.phone || 
-                            addressDetails?.mobile || 
-                            currentUser?.phone || 
-                            currentUser?.mobile || 
-                            "";
-        
-        // Prepare order data with ALL fields including customer info
         const orderData = {
           items: orderItems,
           address_id: addressId,
@@ -379,13 +505,11 @@ export const customerApi = {
           grand_total: grandTotal,
           order_status: "placed",
           payment_status: paymentMethod === 'cod' ? 'pending' : 'paid',
-          // Add customer information
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone
         };
         
-        // Add shipping address if available
         if (addressDetails) {
           const validatedAddress = validateAndFixAddress(addressDetails);
           orderData.shipping_address = validatedAddress;
@@ -395,22 +519,93 @@ export const customerApi = {
           orderData.coupon_code = couponCode;
         }
         
-        const response = await apiRequest('/customer/create', {
+        const response = await apiRequest('/customer/create-order', {
           method: 'POST',
           body: orderData,
         });
         
-        // Clear cart after successful order
-        if (response && (response.status === 'success' || response.data || response.order_id)) {
+        // Extract order ID from response
+        let orderId = null;
+        if (response && response.data) {
+          orderId = response.data._id || response.data.id || response.data.order_id;
+        } else if (response) {
+          orderId = response._id || response.id || response.order_id;
+        }
+        
+        // Clear cart on success
+        if (orderId) {
           try {
             await customerApi.cart.clear();
           } catch (clearError) {
-            // Silent fail
+            console.error('Error clearing cart:', clearError);
           }
         }
         
         return response.data || response;
       } catch (error) {
+        console.error('Order creation error:', error);
+        throw error;
+      }
+    },
+    
+    createRazorpayOrder: async (amount, currency = "INR", orderId = null) => {
+      try {
+        if (!isAuthenticated()) {
+          console.error('Not authenticated - cannot create Razorpay order');
+          const error = new Error('Please login to continue');
+          error.requiresLogin = true;
+          throw error;
+        }
+        
+        if (!orderId) {
+          console.error('No order_id provided for Razorpay order');
+          throw new Error('Order ID is required for payment creation');
+        }
+        
+        console.log('Creating Razorpay order with order_id:', orderId);
+        console.log('Amount:', amount, 'Currency:', currency);
+        
+        const response = await apiRequest(`/payments/create-order/${orderId}`, {
+          method: 'POST',
+          body: {
+            amount: amount,
+            currency: currency
+          },
+        });
+        
+        console.log('Razorpay order response:', response);
+        
+        // Standardize response format
+        return {
+          key_id: response.key_id || response.razorpay_key_id,
+          order_id: response.order_id || response.razorpay_order_id,
+          amount: response.amount,
+          currency: response.currency,
+          ...response
+        };
+      } catch (error) {
+        console.error('Error creating Razorpay order:', error);
+        
+        if (error.message === 'Session expired. Please login again.' || error.status === 401) {
+          clearAuthData();
+          const loginError = new Error('Your session has expired. Please login again.');
+          loginError.requiresLogin = true;
+          throw loginError;
+        }
+        throw error;
+      }
+    },
+    
+    verifyPayment: async (paymentData) => {
+      try {
+        const response = await apiRequest('/payments/verify-payment', {
+          method: 'POST',
+          body: paymentData,
+        });
+        console.log('Payment verification response:', response);
+        return response;
+      } catch (error) {
+        console.error('Error verifying payment:', error);
         throw error;
       }
     },
@@ -426,6 +621,7 @@ export const customerApi = {
         if (Array.isArray(response)) return response;
         return [];
       } catch (error) {
+        console.error('Error fetching orders:', error);
         return [];
       }
     },
@@ -477,6 +673,7 @@ export const customerApi = {
         
         return { addresses: addresses, ...response };
       } catch (error) {
+        console.error('Error fetching addresses:', error);
         return { addresses: [] };
       }
     },
@@ -494,9 +691,7 @@ export const customerApi = {
     },
     
     getById: async (addressId) => {
-      if (!addressId) {
-        throw new Error("Address ID is required");
-      }
+      if (!addressId) throw new Error("Address ID is required");
       try {
         const response = await apiRequest(`/customer/customer/addresses/${addressId}`);
         return response;
@@ -506,9 +701,7 @@ export const customerApi = {
     },
     
     update: async (addressId, addressData) => {
-      if (!addressId) {
-        throw new Error("Address ID is required");
-      }
+      if (!addressId) throw new Error("Address ID is required");
       try {
         const response = await apiRequest(`/customer/customer/addresses/${addressId}`, {
           method: 'PUT',
@@ -521,9 +714,7 @@ export const customerApi = {
     },
     
     delete: async (addressId) => {
-      if (!addressId) {
-        throw new Error("Address ID is required");
-      }
+      if (!addressId) throw new Error("Address ID is required");
       try {
         const response = await apiRequest(`/customer/customer/addresses/${addressId}`, {
           method: 'DELETE',
@@ -535,9 +726,7 @@ export const customerApi = {
     },
     
     setDefault: async (addressId) => {
-      if (!addressId) {
-        throw new Error("Address ID is required");
-      }
+      if (!addressId) throw new Error("Address ID is required");
       try {
         const response = await apiRequest(`/customer/customer/addresses/${addressId}/default`, {
           method: 'PUT',
@@ -549,27 +738,13 @@ export const customerApi = {
     },
   },
   
-  // ==================== AUTH / PROFILE ====================
-  getMe: async () => {
-    try {
-      const response = await apiRequest('/auth/me');
-      // Store user data after fetching
-      if (response && response.data) {
-        localStorage.setItem('user', JSON.stringify(response.data));
-      }
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
+  // ==================== PROFILE ====================
   updateProfile: async (userData) => {
     try {
-      const response = await apiRequest('/auth/me', {
+      const response = await apiRequest('/customer/profile', {
         method: 'PUT',
         body: userData,
       });
-      // Update stored user data
       if (response && response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
       }
@@ -594,6 +769,21 @@ export const customerApi = {
     } catch (error) {
       throw error;
     }
+  },
+  
+  // ==================== RAZORPAY HELPER ====================
+  loadRazorpayScript: () => {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
+      document.body.appendChild(script);
+    });
   },
   
   // ==================== HELPER METHODS ====================
@@ -660,6 +850,22 @@ export const customerApi = {
   
   createOrder: async (addressId, paymentMethod = 'cod', notes = '', couponCode = null) => {
     return customerApi.orders.create(addressId, paymentMethod, notes, couponCode);
+  },
+  
+  createRazorpayOrder: async (amount, currency = "INR", orderId = null) => {
+    return customerApi.orders.createRazorpayOrder(amount, currency, orderId);
+  },
+  
+  verifyRazorpayPayment: async (paymentData) => {
+    return customerApi.orders.verifyPayment(paymentData);
+  },
+  
+  isLoggedIn: () => {
+    return isAuthenticated();
+  },
+  
+  logout: () => {
+    return customerApi.auth.logout();
   }
 };
 

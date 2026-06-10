@@ -127,8 +127,8 @@ export function AdminCustomers() {
       });
       
       const pageWidth = doc.internal.pageSize.getWidth();
-      const primaryColor = [62, 124, 71];
-      const lightGray = [245, 245, 245];
+      const primaryColor = [59, 130, 246];
+      const lightGray = [248, 250, 252];
       
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
       doc.rect(0, 0, pageWidth, 45, 'F');
@@ -160,10 +160,10 @@ export function AdminCustomers() {
       const avgOrderFormatted = formatAmount(stats.totalOrders > 0 ? Math.round(stats.totalRevenue / stats.totalOrders) : 0);
       
       const summaryData = [
-        { label: 'Total Customers', value: stats.total.toString(), color: [66, 139, 202] },
-        { label: 'Total Orders', value: stats.totalOrders.toString(), color: [92, 184, 92] },
-        { label: 'Total Revenue', value: totalRevenueFormatted, color: [240, 173, 78] },
-        { label: 'Avg Order Value', value: avgOrderFormatted, color: [217, 83, 79] }
+        { label: 'Total Customers', value: stats.total.toString(), color: [59, 130, 246] },
+        { label: 'Total Orders', value: stats.totalOrders.toString(), color: [16, 185, 129] },
+        { label: 'Total Revenue', value: totalRevenueFormatted, color: [245, 158, 11] },
+        { label: 'Avg Order Value', value: avgOrderFormatted, color: [239, 68, 68] }
       ];
       
       const cardWidth = (pageWidth - 40) / 4;
@@ -225,7 +225,7 @@ export function AdminCustomers() {
           halign: 'center'
         },
         alternateRowStyles: {
-          fillColor: [248, 248, 248]
+          fillColor: [248, 250, 252]
         },
         columnStyles: {
           0: { cellWidth: 40, halign: 'left' },
@@ -284,8 +284,8 @@ export function AdminCustomers() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#3E7C47] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading customers...</p>
+          <div className="w-12 h-12 border-4 border-[#3B82F6] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#64748B]">Loading customers...</p>
         </div>
       </div>
     );
@@ -297,36 +297,36 @@ export function AdminCustomers() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customer Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage and view all customer information</p>
+          <h1 className="text-2xl font-bold text-[#1E293B]">Customer Management</h1>
+          <p className="text-sm text-[#64748B] mt-1">Manage and view all customer information</p>
         </div>
         <div className="flex gap-3">
           <button 
             onClick={() => fetchCustomers()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#64748B] hover:bg-[#F8FAFC] transition-all"
           >
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
           
           <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all">
+            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#64748B] hover:bg-[#F8FAFC] transition-all">
               <Download className="w-4 h-4" /> Export
             </button>
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-[#E2E8F0] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
               <button
                 onClick={exportToExcel}
                 disabled={exporting}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#1E293B] hover:bg-[#F8FAFC] rounded-t-xl transition-colors"
               >
-                <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                <FileSpreadsheet className="w-4 h-4 text-[#3B82F6]" />
                 Export to Excel
               </button>
               <button
                 onClick={exportToPDF}
                 disabled={exporting}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#1E293B] hover:bg-[#F8FAFC] rounded-b-xl transition-colors"
               >
-                <FileText className="w-4 h-4 text-red-600" />
+                <FileText className="w-4 h-4 text-[#EF4444]" />
                 Export to PDF
               </button>
             </div>
@@ -351,7 +351,7 @@ export function AdminCustomers() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <XCircle className="w-5 h-5 text-[#EF4444] mt-0.5" />
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-red-800">Error Loading Customers</h4>
               <p className="text-xs text-red-600 mt-1">{error}</p>
@@ -367,67 +367,67 @@ export function AdminCustomers() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-[#3E7C47]/10 rounded-xl flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#3E7C47]" />
+            <div className="w-12 h-12 bg-[rgba(59,130,246,0.1)] rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5 text-[#3B82F6]" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          <p className="text-sm font-medium text-gray-700 mt-1">Total Customers</p>
-          <p className="text-xs text-gray-400 mt-0.5">{stats.active} active, {stats.inactive} inactive</p>
+          <p className="text-2xl font-bold text-[#1E293B]">{stats.total}</p>
+          <p className="text-sm font-medium text-[#1E293B] mt-1">Total Customers</p>
+          <p className="text-xs text-[#94A3B8] mt-0.5">{stats.active} active, {stats.inactive} inactive</p>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-              <ShoppingBag className="w-5 h-5 text-blue-600" />
+            <div className="w-12 h-12 bg-[rgba(59,130,246,0.1)] rounded-xl flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-[#3B82F6]" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.totalOrders}</p>
-          <p className="text-sm font-medium text-gray-700 mt-1">Total Orders</p>
-          <p className="text-xs text-gray-400 mt-0.5">From all customers</p>
+          <p className="text-2xl font-bold text-[#1E293B]">{stats.totalOrders}</p>
+          <p className="text-sm font-medium text-[#1E293B] mt-1">Total Orders</p>
+          <p className="text-xs text-[#94A3B8] mt-0.5">From all customers</p>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
+            <div className="w-12 h-12 bg-[rgba(59,130,246,0.1)] rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-[#3B82F6]" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">₹{stats.totalRevenue.toLocaleString('en-IN')}</p>
-          <p className="text-sm font-medium text-gray-700 mt-1">Total Revenue</p>
-          <p className="text-xs text-gray-400 mt-0.5">Lifetime value</p>
+          <p className="text-2xl font-bold text-[#1E293B]">₹{stats.totalRevenue.toLocaleString('en-IN')}</p>
+          <p className="text-sm font-medium text-[#1E293B] mt-1">Total Revenue</p>
+          <p className="text-xs text-[#94A3B8] mt-0.5">Lifetime value</p>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-amber-600" />
+            <div className="w-12 h-12 bg-[rgba(59,130,246,0.1)] rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-[#3B82F6]" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">₹{avgOrderValue.toLocaleString('en-IN')}</p>
-          <p className="text-sm font-medium text-gray-700 mt-1">Avg. Order Value</p>
-          <p className="text-xs text-gray-400 mt-0.5">Per order average</p>
+          <p className="text-2xl font-bold text-[#1E293B]">₹{avgOrderValue.toLocaleString('en-IN')}</p>
+          <p className="text-sm font-medium text-[#1E293B] mt-1">Avg. Order Value</p>
+          <p className="text-xs text-[#94A3B8] mt-0.5">Per order average</p>
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input
             type="text"
             placeholder="Search customers by name, email, or phone..."
             value={search}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E7C47]/20 focus:border-[#3E7C47]"
+            className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
           />
         </div>
         <div className="flex gap-2">
           <select 
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#3E7C47]/20"
+            className="px-4 py-3 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
           >
             <option value="all">All Customers</option>
             <option value="active">Active</option>
@@ -436,21 +436,21 @@ export function AdminCustomers() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Orders</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Spent</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Order</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Badge</th>
+              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Customer</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Contact</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Orders</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Total Spent</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Last Order</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Badge</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[#E2E8F0]">
               {customers.map((customer, idx) => {
                 const badge = getCustomerBadge(customer);
                 return (
@@ -459,46 +459,46 @@ export function AdminCustomers() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="hover:bg-gray-50 transition-colors group"
+                    className="hover:bg-[#F8FAFC] transition-colors group"
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-[#3E7C47] to-[#2E5C37] rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                        <div className="w-10 h-10 bg-gradient-to-br from-[#3B82F6] to-[#2563EB] rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm">
                           {customer.name?.charAt(0) || "U"}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-gray-800">{customer.name || "Anonymous"}</p>
-                          <p className="text-xs text-gray-400">ID: {customer._id?.slice(-8) || customer.id?.slice(-8) || "N/A"}</p>
+                          <p className="text-sm font-semibold text-[#1E293B]">{customer.name || "Anonymous"}</p>
+                          <p className="text-xs text-[#94A3B8]">ID: {customer._id?.slice(-8) || customer.id?.slice(-8) || "N/A"}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Mail className="w-3.5 h-3.5 text-gray-400" /> 
+                        <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                          <Mail className="w-3.5 h-3.5 text-[#94A3B8]" /> 
                           <span className="truncate max-w-[180px]">{customer.email || "No email"}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Phone className="w-3.5 h-3.5 text-gray-400" /> 
+                        <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                          <Phone className="w-3.5 h-3.5 text-[#94A3B8]" /> 
                           {customer.phone || "N/A"}
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-sm font-semibold text-gray-800">{customer.total_orders || 0}</span>
+                      <span className="text-sm font-semibold text-[#1E293B]">{customer.total_orders || 0}</span>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-sm font-bold text-[#3E7C47]">₹{(customer.total_spent || 0).toLocaleString('en-IN')}</span>
+                      <span className="text-sm font-bold text-[#3B82F6]">₹{(customer.total_spent || 0).toLocaleString('en-IN')}</span>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-[#64748B]">
                         {customer.last_order_date ? new Date(customer.last_order_date).toLocaleDateString('en-IN') : 'Never'}
                       </span>
                     </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
                         customer.status === 'active' 
-                          ? 'bg-green-100 text-green-700' 
+                          ? 'bg-[rgba(59,130,246,0.1)] text-[#3B82F6]' 
                           : customer.status === 'inactive'
                           ? 'bg-red-100 text-red-700'
                           : 'bg-gray-100 text-gray-700'
@@ -516,13 +516,13 @@ export function AdminCustomers() {
                 );
               })}
               {customers.length === 0 && !error && (
-                <tr>
+                <td>
                   <td colSpan={7} className="px-5 py-12 text-center">
-                    <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No customers found</p>
-                    <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filter</p>
+                    <Users className="w-12 h-12 text-[#94A3B8] mx-auto mb-3" />
+                    <p className="text-[#64748B]">No customers found</p>
+                    <p className="text-xs text-[#94A3B8] mt-1">Try adjusting your search or filter</p>
                   </td>
-                </tr>
+                </td>
               )}
             </tbody>
           </table>
@@ -530,22 +530,22 @@ export function AdminCustomers() {
       </div>
 
       {customers.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl">
-          <p className="text-sm text-gray-600">
-            Showing <span className="font-semibold text-gray-900">{customers.length}</span> customers
+        <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFC] rounded-xl">
+          <p className="text-sm text-[#64748B]">
+            Showing <span className="font-semibold text-[#1E293B]">{customers.length}</span> customers
           </p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-              <span className="text-xs text-gray-500">VIP (₹10k+ or 20+ orders)</span>
+              <span className="text-xs text-[#64748B]">VIP (₹10k+ or 20+ orders)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-xs text-gray-500">Regular (₹5k+ or 10+ orders)</span>
+              <span className="text-xs text-[#64748B]">Regular (₹5k+ or 10+ orders)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-xs text-gray-500">New</span>
+              <span className="text-xs text-[#64748B]">New</span>
             </div>
           </div>
         </div>

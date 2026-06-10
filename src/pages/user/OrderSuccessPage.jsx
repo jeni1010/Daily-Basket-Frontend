@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   CheckCircle, Receipt, Calendar, CreditCard, MapPin, 
   Truck, Download, ShoppingBag, Phone, Mail, Clock, Loader2,
-  Package, User, Home
+  Package, User, Home, AlertCircle
 } from "lucide-react";
 import { customerApi } from "../../services/customerApi";
 import BrandLogo from "../../components/BrandLogo";
@@ -13,11 +13,15 @@ import Footer from "../../components/Footer";
 
 export function OrderSuccessPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  
+  // Get payment info from location state (for Razorpay)
+  const paymentInfo = location.state || {};
 
   useEffect(() => {
     if (orderId) {
@@ -52,6 +56,7 @@ export function OrderSuccessPage() {
       setOrder(orderData);
       
     } catch (error) {
+      console.error("Error fetching order:", error);
       setError(error.message || "Failed to fetch order details");
     } finally {
       setLoading(false);
@@ -156,7 +161,9 @@ export function OrderSuccessPage() {
           <div class="invoice-body">
             <h3>Order Items</h3>
             <table>
-              <thead><tr><th>Item</th><th>Quantity</th><th>Price</th><th>Total</th></tr></thead>
+              <thead>
+                <tr><th>Item</th><th>Quantity</th><th>Price</th><th>Total</th></tr>
+              </thead>
               <tbody>
                 ${order?.items?.map(item => `
                   <tr>
@@ -209,9 +216,25 @@ export function OrderSuccessPage() {
       shipped: "Shipped",
       delivered: "Delivered",
       cancelled: "Cancelled",
-      pending: "Pending"
+      pending: "Pending",
+      processing: "Processing"
     };
     return statusMap[status] || status;
+  };
+
+  const getStatusColor = (status) => {
+    if (!status) return "bg-yellow-500";
+    const statusMap = {
+      placed: "bg-blue-500",
+      confirmed: "bg-blue-500",
+      packed: "bg-purple-500",
+      shipped: "bg-indigo-500",
+      delivered: "bg-green-500",
+      cancelled: "bg-red-500",
+      pending: "bg-yellow-500",
+      processing: "bg-orange-500"
+    };
+    return statusMap[status] || "bg-gray-500";
   };
 
   const getDeliveryEstimate = (status) => {
@@ -244,7 +267,7 @@ export function OrderSuccessPage() {
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center max-w-md mx-auto p-6">
             <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="w-10 h-10 text-red-500" />
+              <AlertCircle className="w-10 h-10 text-red-500" />
             </div>
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Order Not Found</h2>
             <p className="text-gray-500 text-sm mb-6">{error || "Unable to fetch order details"}</p>
@@ -263,7 +286,9 @@ export function OrderSuccessPage() {
 
   const orderNumber = order?.order_number || order?.order_id || order?.id || orderId || "N/A";
   const orderStatus = order?.order_status || order?.status || "pending";
-  const paymentMethod = order?.payment_method || order?.paymentMethod || "COD";
+  const paymentMethod = order?.payment_method || order?.paymentMethod || 
+                        (paymentInfo.paymentMethod === "razorpay" ? "Razorpay" : "COD");
+  const paymentId = paymentInfo.paymentId || order?.payment_id || "";
   
   const subtotal = calculateSubtotal();
   const deliveryCharge = getDeliveryCharge();
@@ -303,6 +328,9 @@ export function OrderSuccessPage() {
                   <CheckCircle className="w-5 h-5" />
                   <h1 className="text-base font-semibold">Order Successful</h1>
                 </div>
+                {paymentMethod === "Razorpay" && paymentId && (
+                  <p className="text-xs text-gray-500 mt-1">Payment ID: {paymentId.slice(-8)}</p>
+                )}
               </div>
             </div>
 
@@ -316,12 +344,9 @@ export function OrderSuccessPage() {
 
               <div className="border-t border-dashed border-[#E8E1D5] my-3" />
 
-              <div className="bg-[#3E7C47]/5 rounded-lg p-2 mb-3 text-center border border-[#3E7C47]/10">
+              <div className={`${getStatusColor(orderStatus)}/10 rounded-lg p-2 mb-3 text-center border border-${getStatusColor(orderStatus)}/20`}>
                 <div className="flex items-center justify-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    orderStatus === "delivered" ? "bg-green-500" :
-                    orderStatus === "cancelled" ? "bg-red-500" : "bg-[#3E7C47] animate-pulse"
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full ${getStatusColor(orderStatus)}`} />
                   <p className="text-xs font-medium text-gray-700">
                     Status: {getOrderStatus(orderStatus)}
                   </p>
@@ -367,7 +392,7 @@ export function OrderSuccessPage() {
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-3.5 h-3.5 text-[#B6463A]" />
                   <span className="text-xs text-gray-500">Payment:</span>
-                  <span className="text-xs text-gray-700 capitalize">{paymentMethod === "cod" ? "Cash on Delivery" : paymentMethod}</span>
+                  <span className="text-xs text-gray-700 capitalize">{paymentMethod}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-[#B6463A]" />

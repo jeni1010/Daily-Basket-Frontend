@@ -8,6 +8,24 @@ import {
 } from "lucide-react";
 import { adminApi } from "../../services/couponsApi";
 
+// Updated color palette
+const COLORS = {
+  primary: '#3B82F6',
+  primaryDark: '#2563EB',
+  primaryLight: '#60A5FA',
+  primaryBg: 'rgba(59, 130, 246, 0.1)',
+  textPrimary: '#1E293B',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  info: '#3B82F6',
+  bgMain: '#F8FAFC',
+  cardBg: '#FFFFFF',
+};
+
 const getTypeIcon = (type) => {
   switch(type) {
     case "percentage": return <Percent className="w-5 h-5" />;
@@ -39,7 +57,7 @@ const getTypeLabel = (type) => {
 };
 
 const getStatusColor = (status, isExpired) => {
-  if (status === 'active' && !isExpired) return "bg-green-100 text-green-700";
+  if (status === 'active' && !isExpired) return "bg-[rgba(59,130,246,0.1)] text-[#3B82F6]";
   if (status === 'active' && isExpired) return "bg-red-100 text-red-600";
   return "bg-gray-100 text-gray-500";
 };
@@ -329,8 +347,8 @@ export function AdminCoupons() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading coupons...</p>
+          <div className="w-12 h-12 border-4 border-[#3B82F6] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#64748B]">Loading coupons...</p>
         </div>
       </div>
     );
@@ -340,15 +358,15 @@ export function AdminCoupons() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Coupon Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage promotional offers</p>
+          <h1 className="text-2xl font-bold text-[#1E293B]">Coupon Management</h1>
+          <p className="text-sm text-[#64748B] mt-1">Create and manage promotional offers</p>
         </div>
         <button
           onClick={() => {
             resetForm();
             setShowModal(true);
           }}
-          className="flex items-center gap-2 bg-gray-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-900 transition-all shadow-md"
+          className="flex items-center gap-2 bg-[#3B82F6] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#2563EB] transition-all shadow-md"
         >
           <Plus className="w-4 h-4" /> Create Coupon
         </button>
@@ -363,13 +381,13 @@ export function AdminCoupons() {
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input
             type="text"
             placeholder="Search coupons by code or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
           />
         </div>
         <div className="flex gap-2">
@@ -379,8 +397,8 @@ export function AdminCoupons() {
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all capitalize ${
                 filter === f
-                  ? "bg-gray-800 text-white shadow-md"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-800"
+                  ? "bg-[#3B82F6] text-white shadow-md"
+                  : "bg-white border border-[#E2E8F0] text-[#64748B] hover:border-[#3B82F6] hover:text-[#3B82F6]"
               }`}
             >
               {f === "all" ? "All" : f}
@@ -405,34 +423,24 @@ export function AdminCoupons() {
               whileHover={{ y: -4 }}
               className="group"
             >
-              <div className="relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-200">
-                <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Leaf className="w-16 h-16 text-gray-400" />
-                </div>
-                <div className="absolute bottom-2 left-2 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Apple className="w-12 h-12 text-gray-400" />
-                </div>
-                
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-12 bg-white rounded-r-full shadow-inner border-r border-gray-200"></div>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-12 bg-white rounded-l-full shadow-inner border-l border-gray-200"></div>
-                
-                <div className={`px-5 pt-5 pb-3 border-b-2 border-dashed border-gray-200 ${(coupon.status !== 'active' || isExpiredStatus) ? 'opacity-60' : ''}`}>
+              <div className="relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-[#E2E8F0]">
+                <div className={`px-5 pt-5 pb-3 border-b-2 border-dashed border-[#E2E8F0] ${(coupon.status !== 'active' || isExpiredStatus) ? 'opacity-60' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-mono font-bold text-xl text-gray-800 tracking-wider">{coupon.code}</p>
+                        <p className="font-mono font-bold text-xl text-[#1E293B] tracking-wider">{coupon.code}</p>
                         <button
                           onClick={() => handleCopyCode(coupon.code)}
-                          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-1.5 hover:bg-[#F8FAFC] rounded-lg transition-colors"
                         >
                           {copiedCode === coupon.code ? (
-                            <Check className="w-3.5 h-3.5 text-green-600" />
+                            <Check className="w-3.5 h-3.5 text-[#3B82F6]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5 text-gray-400" />
+                            <Copy className="w-3.5 h-3.5 text-[#94A3B8]" />
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-gray-500 line-clamp-1">{coupon.description}</p>
+                      <p className="text-xs text-[#64748B] line-clamp-1">{coupon.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusColor(coupon.status, isExpiredStatus)}`}>
@@ -440,12 +448,12 @@ export function AdminCoupons() {
                       </span>
                       <button
                         onClick={() => handleToggleStatus(coupon.id)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-[#94A3B8] hover:text-[#3B82F6] transition-colors"
                         title={coupon.status === 'active' ? 'Deactivate' : 'Activate'}
                       >
                         {coupon.status === 'active' && !isExpiredStatus ? 
-                          <ToggleRight className="w-6 h-6 text-green-600" /> : 
-                          <ToggleLeft className="w-6 h-6 text-gray-400" />
+                          <ToggleRight className="w-6 h-6 text-[#3B82F6]" /> : 
+                          <ToggleLeft className="w-6 h-6 text-[#94A3B8]" />
                         }
                       </button>
                     </div>
@@ -454,38 +462,38 @@ export function AdminCoupons() {
 
                 <div className="p-5">
                   <div className="text-center mb-4">
-                    <p className="text-3xl font-bold text-gray-800">
+                    <p className="text-3xl font-bold text-[#1E293B]">
                       {getDiscountDisplay(coupon)}
                     </p>
-                    <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-500">
+                    <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-[#F8FAFC] rounded-full text-xs text-[#64748B]">
                       <Tag className="w-3 h-3" />
                       {getTypeLabel(coupon.coupon_type)}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-gray-50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-400">Min. Order</p>
-                      <p className="font-semibold text-gray-700">
+                    <div className="bg-[#F8FAFC] rounded-lg p-2 text-center">
+                      <p className="text-xs text-[#94A3B8]">Min. Order</p>
+                      <p className="font-semibold text-[#1E293B]">
                         {coupon.minimum_order_amount > 0 ? `₹${coupon.minimum_order_amount}` : "No minimum"}
                       </p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-400">Expires</p>
-                      <p className="font-semibold text-gray-700 text-sm">
+                    <div className="bg-[#F8FAFC] rounded-lg p-2 text-center">
+                      <p className="text-xs text-[#94A3B8]">Expires</p>
+                      <p className="font-semibold text-[#1E293B] text-sm">
                         {coupon.end_date ? new Date(coupon.end_date).toLocaleDateString() : "No expiry"}
                       </p>
                     </div>
                   </div>
 
                   <div className="mb-4">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <div className="flex justify-between text-xs text-[#64748B] mb-1">
                       <span>Usage</span>
                       <span>{coupon.usage_count || 0} / {coupon.usage_limit_per_coupon > 0 ? coupon.usage_limit_per_coupon : '∞'}</span>
                     </div>
-                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gray-600 rounded-full transition-all duration-500"
+                        className="h-full bg-[#3B82F6] rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(((coupon.usage_count || 0) / (coupon.usage_limit_per_coupon || 1)) * 100, 100)}%` }}
                       />
                     </div>
@@ -494,20 +502,20 @@ export function AdminCoupons() {
                   <div className="flex gap-2 pt-2">
                     <button 
                       onClick={() => openEditModal(coupon)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:border-gray-400 hover:text-gray-800 transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-[#E2E8F0] text-[#64748B] rounded-lg text-sm font-medium hover:border-[#3B82F6] hover:text-[#3B82F6] transition-all"
                     >
                       <Edit2 className="w-3.5 h-3.5" /> Edit
                     </button>
                     <button 
                       onClick={() => handleDeleteCoupon(coupon.id)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-gray-200 text-red-500 rounded-lg text-sm font-medium hover:border-red-500 hover:bg-red-50 transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-[#E2E8F0] text-[#EF4444] rounded-lg text-sm font-medium hover:border-[#EF4444] hover:bg-red-50 transition-all"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
                   </div>
                 </div>
 
-                <div className="h-2 bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                <div className="h-2 bg-gradient-to-r from-transparent via-[#3B82F6]/20 to-transparent"></div>
               </div>
             </motion.div>
           );
@@ -515,10 +523,10 @@ export function AdminCoupons() {
       </div>
 
       {filteredCoupons.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-300">
-          <Tag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="font-semibold text-gray-700 mb-2">No coupons found</h3>
-          <p className="text-gray-400 text-sm mb-4">
+        <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-[#E2E8F0]">
+          <Tag className="w-16 h-16 text-[#94A3B8] mx-auto mb-4" />
+          <h3 className="font-semibold text-[#1E293B] mb-2">No coupons found</h3>
+          <p className="text-[#64748B] text-sm mb-4">
             {searchTerm ? "Try a different search term" : "Create your first coupon to get started"}
           </p>
           <button
@@ -526,7 +534,7 @@ export function AdminCoupons() {
               resetForm();
               setShowModal(true);
             }}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-900 transition-all"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#3B82F6] text-white rounded-xl text-sm font-medium hover:bg-[#2563EB] transition-all"
           >
             <Plus className="w-4 h-4" /> Create Coupon
           </button>
@@ -542,14 +550,14 @@ export function AdminCoupons() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
             >
-              <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-5 border-b border-gray-100">
-                <h3 className="font-bold text-xl text-gray-800">
+              <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-5 border-b border-[#E2E8F0]">
+                <h3 className="font-bold text-xl text-[#1E293B]">
                   {editingCoupon ? "Edit Coupon" : "Create New Coupon"}
                 </h3>
                 <button onClick={() => {
                   setShowModal(false);
                   resetForm();
-                }} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
+                }} className="p-1.5 text-[#94A3B8] hover:bg-[#F8FAFC] rounded-lg transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -559,36 +567,36 @@ export function AdminCoupons() {
                 editingCoupon ? handleUpdateCoupon() : handleCreateCoupon();
               }} className="p-5 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Code *</label>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-1">Coupon Code *</label>
                   <input
                     type="text"
                     value={form.code}
                     onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                     placeholder="e.g., FRESH20"
-                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent uppercase"
+                    className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] uppercase"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Name *</label>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-1">Coupon Name *</label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="e.g., Fresh Vegetables Offer"
-                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Discount Type</label>
                     <select
                       value={form.coupon_type}
                       onChange={(e) => setForm({ ...form, coupon_type: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                       required
                     >
                       <option value="percentage">Percentage (%)</option>
@@ -598,13 +606,13 @@ export function AdminCoupons() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value *</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Discount Value *</label>
                     <input
                       type="number"
                       value={form.discount_value}
                       onChange={(e) => setForm({ ...form, discount_value: e.target.value })}
                       placeholder="e.g., 20"
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                       required
                     />
                   </div>
@@ -612,105 +620,105 @@ export function AdminCoupons() {
 
                 {form.coupon_type === 'percentage' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Discount Amount (₹)</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Maximum Discount Amount (₹)</label>
                     <input
                       type="number"
                       value={form.maximum_discount_amount}
                       onChange={(e) => setForm({ ...form, maximum_discount_amount: e.target.value })}
                       placeholder="e.g., 500"
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Optional: Maximum discount amount for percentage coupons</p>
+                    <p className="text-xs text-[#94A3B8] mt-1">Optional: Maximum discount amount for percentage coupons</p>
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Min. Order (₹)</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Min. Order (₹)</label>
                     <input
                       type="number"
                       value={form.minimum_order_amount}
                       onChange={(e) => setForm({ ...form, minimum_order_amount: e.target.value })}
                       placeholder="0"
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Usage Limit (Total)</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Usage Limit (Total)</label>
                     <input
                       type="number"
                       value={form.usage_limit_per_coupon}
                       onChange={(e) => setForm({ ...form, usage_limit_per_coupon: e.target.value })}
                       placeholder="Unlimited"
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Start Date *</label>
                     <input
                       type="date"
                       value={form.start_date}
                       onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1">Expiry Date *</label>
                     <input
                       type="date"
                       value={form.end_date}
                       onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-1">Description</label>
                   <textarea
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                     placeholder="Brief description of the offer"
                     rows="2"
-                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+                    className="w-full px-4 py-2.5 bg-[#F8FAFC] rounded-xl text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] resize-none"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer">
-                    <span className="text-sm font-medium text-gray-700">Status</span>
+                  <label className="flex items-center justify-between p-3 bg-[#F8FAFC] rounded-xl cursor-pointer">
+                    <span className="text-sm font-medium text-[#1E293B]">Status</span>
                     <select
                       value={form.status}
                       onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className="px-3 py-1.5 bg-white rounded-lg text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="px-3 py-1.5 bg-white rounded-lg text-sm border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                     </select>
                   </label>
 
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer">
-                    <span className="text-sm font-medium text-gray-700">First Purchase Only</span>
+                  <label className="flex items-center justify-between p-3 bg-[#F8FAFC] rounded-xl cursor-pointer">
+                    <span className="text-sm font-medium text-[#1E293B]">First Purchase Only</span>
                     <input
                       type="checkbox"
                       checked={form.is_first_purchase_only}
                       onChange={(e) => setForm({ ...form, is_first_purchase_only: e.target.checked })}
-                      className="w-5 h-5 accent-gray-700"
+                      className="w-5 h-5 accent-[#3B82F6]"
                     />
                   </label>
 
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer">
-                    <span className="text-sm font-medium text-gray-700">New User Only</span>
+                  <label className="flex items-center justify-between p-3 bg-[#F8FAFC] rounded-xl cursor-pointer">
+                    <span className="text-sm font-medium text-[#1E293B]">New User Only</span>
                     <input
                       type="checkbox"
                       checked={form.is_new_user_only}
                       onChange={(e) => setForm({ ...form, is_new_user_only: e.target.checked })}
-                      className="w-5 h-5 accent-gray-700"
+                      className="w-5 h-5 accent-[#3B82F6]"
                     />
                   </label>
                 </div>
@@ -722,13 +730,13 @@ export function AdminCoupons() {
                       setShowModal(false);
                       resetForm();
                     }}
-                    className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                    className="flex-1 py-2.5 border border-[#E2E8F0] text-[#64748B] rounded-xl text-sm font-medium hover:bg-[#F8FAFC] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-900 transition-all"
+                    className="flex-1 py-2.5 bg-[#3B82F6] text-white rounded-xl text-sm font-medium hover:bg-[#2563EB] transition-all"
                   >
                     {editingCoupon ? "Save Changes" : "Create Coupon"}
                   </button>
@@ -744,13 +752,13 @@ export function AdminCoupons() {
 
 function StatCard({ title, value, icon }) {
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+    <div className="bg-white rounded-xl p-4 shadow-sm border border-[#E2E8F0]">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-2xl font-bold text-gray-800">{value}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{title}</p>
+          <p className="text-2xl font-bold text-[#1E293B]">{value}</p>
+          <p className="text-xs text-[#64748B] mt-0.5">{title}</p>
         </div>
-        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600">
+        <div className="w-10 h-10 rounded-xl bg-[rgba(59,130,246,0.1)] flex items-center justify-center text-[#3B82F6]">
           {icon}
         </div>
       </div>

@@ -15,6 +15,22 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
+// Professional Slate + Blue Theme
+const COLORS = {
+  primary: '#3B82F6',
+  primaryDark: '#2563EB',
+  primaryLight: '#60A5FA',
+  sidebarBg: '#1E293B',
+  sidebarDark: '#0F172A',
+  textPrimary: '#1E293B',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  bgMain: '#F1F5F9',
+  cardBg: '#FFFFFF',
+  danger: '#EF4444',
+};
+
 const navItems = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/products", label: "Products", icon: Package },
@@ -29,7 +45,6 @@ export function AdminLayout() {
   const location = useLocation();
   const { logout, user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const handleLogout = () => {
@@ -41,20 +56,14 @@ export function AdminLayout() {
   const SidebarContent = () => (
     <>
       {/* Logo Section */}
-      <div className={`flex items-center gap-3 px-6 py-6 border-b border-white/10 transition-all duration-300 ${isCollapsed ? 'justify-center px-3' : ''}`}>
-        <div className="w-10 h-10 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+        <div className="w-10 h-10 bg-[#3B82F6] rounded-xl flex items-center justify-center overflow-hidden shadow-lg">
           <img src="/logo2.jpeg" alt="Daily Basket" className="w-full h-full object-cover" />
         </div>
-        {!isCollapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <span className="text-lg font-bold text-white">Daily Basket</span>
-            <p className="text-white/60 text-xs">Admin Panel</p>
-          </motion.div>
-        )}
+        <div>
+          <span className="text-lg font-bold text-white">Daily Basket</span>
+          <p className="text-white/60 text-xs">Admin Panel</p>
+        </div>
       </div>
 
       {/* Nav links */}
@@ -72,41 +81,20 @@ export function AdminLayout() {
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-white/20 text-white shadow-lg backdrop-blur"
+                  ? "bg-[#3B82F6] text-white shadow-lg"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
-              } ${isCollapsed ? 'justify-center px-2' : ''}`}
+              }`}
             >
               <Icon className="w-5 h-5" />
-              {!isCollapsed && (
-                <span className="flex-1 text-left">{label}</span>
-              )}
-              {isActive && !isCollapsed && <ChevronRight className="w-4 h-4" />}
+              <span className="flex-1 text-left">{label}</span>
+              {isActive && <ChevronRight className="w-4 h-4" />}
             </motion.button>
           );
         })}
       </nav>
-
-      {/* Bottom Section */}
-      <div className="px-3 pb-6 space-y-2">
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-all ${isCollapsed ? 'justify-center px-2' : ''}`}
-        >
-          <Menu className="w-5 h-5" />
-          {!isCollapsed && <span>Collapse Menu</span>}
-        </button>
-        <button
-          onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/70 hover:bg-red-500/20 hover:text-red-200 transition-all ${isCollapsed ? 'justify-center px-2' : ''}`}
-        >
-          <LogOut className="w-5 h-5" />
-          {!isCollapsed && <span>Logout</span>}
-        </button>
-      </div>
     </>
   );
 
-  // Get user initials for avatar
   const getUserInitials = () => {
     if (user?.name) {
       return user.name.charAt(0).toUpperCase();
@@ -117,7 +105,6 @@ export function AdminLayout() {
     return "A";
   };
 
-  // Get display name
   const getDisplayName = () => {
     if (user?.name) return user.name;
     if (user?.email) return user.email.split('@')[0];
@@ -125,19 +112,15 @@ export function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FDF8F0] via-white to-[#FDF8F0]">
-      {/* Desktop sidebar */}
-      <motion.aside
-        animate={{ width: isCollapsed ? 80 : 280 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="hidden lg:flex flex-col bg-gradient-to-b from-[#8B2C2C] to-[#6B1E1E] fixed left-0 top-0 bottom-0 z-30 shadow-2xl"
-      >
+    <div className="min-h-screen bg-[#F1F5F9]">
+      {/* Desktop sidebar - Slate Dark */}
+      <aside className="hidden lg:flex flex-col w-72 bg-gradient-to-b from-[#1E293B] to-[#0F172A] fixed left-0 top-0 bottom-0 z-30 shadow-2xl">
         <SidebarContent />
-      </motion.aside>
+      </aside>
 
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - Blue */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 w-11 h-11 bg-[#8B2C2C] rounded-2xl flex items-center justify-center text-white shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 w-11 h-11 bg-[#3B82F6] rounded-2xl flex items-center justify-center text-white shadow-lg"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -159,7 +142,7 @@ export function AdminLayout() {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: "spring", damping: 25 }}
-              className="lg:hidden fixed left-0 top-0 bottom-0 w-72 bg-gradient-to-b from-[#8B2C2C] to-[#6B1E1E] z-50 flex flex-col shadow-2xl"
+              className="lg:hidden fixed left-0 top-0 bottom-0 w-72 bg-gradient-to-b from-[#1E293B] to-[#0F172A] z-50 flex flex-col shadow-2xl"
             >
               <SidebarContent />
             </motion.aside>
@@ -168,9 +151,9 @@ export function AdminLayout() {
       </AnimatePresence>
 
       {/* Main content */}
-      <main className={`transition-all duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
-        {/* Top Navbar - Simplified */}
-        <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <main className="lg:ml-72">
+        {/* Top Navbar - Professional Blue */}
+        <div className="sticky top-0 z-20 bg-white shadow-md border-b border-[#E2E8F0]">
           <div className="flex items-center justify-end px-6 py-4">
             {/* Profile Section */}
             <div className="relative">
@@ -179,15 +162,15 @@ export function AdminLayout() {
                 className="flex items-center gap-3 pl-3"
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-800">{getDisplayName()}</p>
-                  <p className="text-xs text-gray-500">{user?.email || "admin@dailybasket.com"}</p>
+                  <p className="text-sm font-semibold text-[#1E293B]">{getDisplayName()}</p>
+                  <p className="text-xs text-[#64748B]">{user?.email || "admin@dailybasket.com"}</p>
                 </div>
-                <div className="w-10 h-10 bg-gradient-to-br from-[#8B2C2C] to-[#6B1E1E] rounded-xl flex items-center justify-center text-white font-semibold shadow-md">
+                <div className="w-10 h-10 bg-[#3B82F6] rounded-xl flex items-center justify-center text-white font-semibold shadow-md">
                   {getUserInitials()}
                 </div>
               </button>
 
-              {/* Profile Dropdown Menu - Only Logout */}
+              {/* Profile Dropdown Menu */}
               <AnimatePresence>
                 {showProfileMenu && (
                   <>
@@ -202,11 +185,11 @@ export function AdminLayout() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 top-14 w-64 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden"
+                      className="absolute right-0 top-14 w-64 bg-white rounded-xl shadow-lg border border-[#E2E8F0] z-50 overflow-hidden"
                     >
-                      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <p className="text-sm font-semibold text-gray-800">{getDisplayName()}</p>
-                        <p className="text-xs text-gray-500">{user?.email || "admin@dailybasket.com"}</p>
+                      <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#F1F5F9]">
+                        <p className="text-sm font-semibold text-[#1E293B]">{getDisplayName()}</p>
+                        <p className="text-xs text-[#64748B]">{user?.email || "admin@dailybasket.com"}</p>
                       </div>
                       <div className="py-1">
                         <button
@@ -214,7 +197,7 @@ export function AdminLayout() {
                             setShowProfileMenu(false);
                             handleLogout();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#EF4444] hover:bg-red-50 transition-colors"
                         >
                           <LogOut className="w-4 h-4" />
                           Logout

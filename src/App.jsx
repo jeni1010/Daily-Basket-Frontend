@@ -70,15 +70,26 @@ const AdminProtectedRoute = ({ children }) => {
     return <Navigate to="/signin" replace />;
   }
   
-  const userRole = user.role || user.user?.role;
+  // Check role from multiple possible locations
+  const userRole = user?.role || 
+                  user?.user?.role || 
+                  user?.data?.role ||
+                  user?.user?.user?.role;
+  
+  console.log('AdminProtectedRoute - User role:', userRole);
+  console.log('User object:', user);
+  
   const isAdmin = userRole === 'admin' || 
-                 userRole === 'ADMIN' || 
-                 userRole === 'super_admin' ||
-                 userRole === 'Super Admin' ||
-                 userRole === 'administrator';
+                  userRole === 'ADMIN' || 
+                  userRole === 'super_admin' ||
+                  userRole === 'Super Admin' ||
+                  userRole === 'administrator' ||
+                  userRole === 'Administrator';
+  
+  console.log('Is admin:', isAdmin);
   
   if (!isAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
   
   return children;
@@ -90,7 +101,7 @@ function App() {
     const wakeUpBackend = async () => {
       try {
         console.log('🌤️ Waking up backend...');
-        await fetch('https://db-backend-1-rhre.onrender.com/');
+        await fetch('https://dailybasket.cloud/');
         console.log('✅ Backend is awake');
       } catch (error) {
         console.log('⏰ Backend is waking up...');
@@ -117,11 +128,7 @@ function App() {
             <Route path="/product/:slug" element={<ProductDetailPage />} />
             
             {/* How It Works Route */}
-            <Route path="/how-it-works" element={
-              <UserProtectedRoute>
-                <HowItWorksPage />
-              </UserProtectedRoute>
-            } />
+            <Route path="/how-it-works" element={<HowItWorksPage />} />
             
             {/* User Dashboard Route */}
             <Route 

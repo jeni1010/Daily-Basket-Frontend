@@ -8,18 +8,27 @@ import Footer from "../../components/Footer";
 
 export function WishlistPage() {
   const navigate = useNavigate();
-  const { toggleWishlist, addToCart } = useApp();
+  const { toggleWishlist, addToCart, wishlistProducts: contextWishlistProducts, loadWishlist } = useApp();
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
 
   useEffect(() => {
     fetchWishlistProducts();
   }, []);
 
+  // Sync with context when it updates
+  useEffect(() => {
+    if (contextWishlistProducts && contextWishlistProducts.length > 0) {
+      setWishlistProducts(contextWishlistProducts);
+    }
+  }, [contextWishlistProducts]);
+
   const fetchWishlistProducts = async () => {
     setLoading(true);
     try {
+      await loadWishlist();
       const productsData = await customerApi.wishlist.get();
       
       if (Array.isArray(productsData) && productsData.length > 0) {
@@ -35,15 +44,20 @@ export function WishlistPage() {
     }
   };
 
-  const handleRemoveFromWishlist = async (productId) => {
+  const handleRemoveFromWishlist = async (product) => {
+    const productId = product._id;
+    
+    if (removingId === productId) return;
+    
+    setRemovingId(productId);
     try {
-      await customerApi.wishlist.remove(productId);
-      toggleWishlist(productId);
+      await toggleWishlist(product);
       setWishlistProducts(prev => prev.filter(p => p._id !== productId));
     } catch (error) {
       console.error("Error removing from wishlist:", error);
-      toggleWishlist(productId);
-      setWishlistProducts(prev => prev.filter(p => p._id !== productId));
+      alert("Failed to remove item from wishlist. Please try again.");
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -51,11 +65,17 @@ export function WishlistPage() {
     if (window.confirm("Are you sure you want to clear your entire wishlist? This action cannot be undone.")) {
       setClearing(true);
       try {
+        // ONLY call the clear endpoint - NO loop of toggleWishlist!
         await customerApi.wishlist.clear();
-        for (const product of wishlistProducts) {
-          toggleWishlist(product._id);
-        }
+        
+        // Clear local state
         setWishlistProducts([]);
+        
+        // Also clear the context wishlist state
+        // You may want to add a method in AppContext to clear wishlist
+        // For now, just reload the wishlist to sync
+        await loadWishlist();
+        
         alert("Wishlist cleared successfully!");
       } catch (error) {
         console.error("Error clearing wishlist:", error);
@@ -137,10 +157,15 @@ export function WishlistPage() {
           {wishlistProducts.map((item) => (
             <div key={item._id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group relative">
               <button
-                onClick={() => handleRemoveFromWishlist(item._id)}
-                className="absolute top-3 right-3 z-10 bg-white rounded-full p-2 shadow-md hover:bg-gray-100 transition-colors"
+                onClick={() => handleRemoveFromWishlist(item)}
+                disabled={removingId === item._id}
+                className="absolute top-3 right-3 z-10 bg-white rounded-full p-2 shadow-md hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
-                <X className="w-4 h-4 text-gray-500" />
+                {removingId === item._id ? (
+                  <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                ) : (
+                  <X className="w-4 h-4 text-gray-500" />
+                )}
               </button>
               
               <div

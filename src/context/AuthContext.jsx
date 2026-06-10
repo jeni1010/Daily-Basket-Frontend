@@ -27,6 +27,10 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         const userData = await authService.getMe();
         const userInfo = userData.user || userData;
+        
+        // Log role for debugging
+        console.log('Auth check - User role:', userInfo?.role);
+        
         setUser(userInfo);
         localStorage.setItem('user', JSON.stringify(userInfo));
       }
@@ -108,14 +112,21 @@ export const AuthProvider = ({ children }) => {
         try {
           const userData = await authService.getMe();
           const userInfo = userData.user || userData;
+          
+          // Log role for debugging
+          console.log('Signin - User data:', userInfo);
+          console.log('Signin - User role:', userInfo?.role);
+          
           setUser(userInfo);
           localStorage.setItem('user', JSON.stringify(userInfo));
           response.user = userInfo;
+          response.role = userInfo?.role;
         } catch (userErr) {
           console.error('Failed to fetch user data:', userErr);
           if (response.user) {
             setUser(response.user);
             localStorage.setItem('user', JSON.stringify(response.user));
+            response.role = response.user?.role;
           }
         }
       }
@@ -207,6 +218,9 @@ export const AuthProvider = ({ children }) => {
         try {
           const userData = await authService.getMe();
           const userInfo = userData.user || userData;
+          
+          console.log('Google login - User role:', userInfo?.role);
+          
           setUser(userInfo);
           localStorage.setItem('user', JSON.stringify(userInfo));
         } catch (userErr) {

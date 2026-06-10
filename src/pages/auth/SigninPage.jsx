@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-// import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { useAuth } from "../../context/AuthContext";
 import BrandLogo from "../../components/BrandLogo";
 import FloatingProduce from "../../components/FloatingProduce";
@@ -15,10 +14,7 @@ const SigninPage = () => {
     password: "",
   });
   const [loading, setLoading] = useState(false);
-  // const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1094270392987-7j5v4s8vjv8vj5v8j5v8j5v8j5v8j5v8.apps.googleusercontent.com';
 
   const handleChange = (e) => {
     setFormData({
@@ -36,96 +32,48 @@ const SigninPage = () => {
     try {
       const response = await signin(formData.email, formData.password);
       
+      console.log("🔍 Full response:", response);
+      console.log("🔍 Response user:", response.user);
+      console.log("🔍 Response role:", response.role);
+      
       const token = response.access_token || response.token;
       if (token) {
         localStorage.setItem('authToken', token);
         
-        const userRes = await fetch('https://dailybasket.cloud/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        // Get user role from the signin response directly
+        let userRole = response.user?.role || response.role || response.data?.role;
         
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          let userRole = userData.user?.role || userData.role || userData.data?.role;
-          
-          const isAdmin = userRole === 'admin' || 
-                         userRole === 'ADMIN' || 
-                         userRole === 'super_admin' ||
-                         userRole === 'Super Admin' ||
-                         userRole === 'administrator';
-          
-          if (isAdmin) {
-            navigate('/admin');
-          } else {
-            navigate('/');
-          }
+        console.log('✅ User role:', userRole);
+        
+        const isAdmin = userRole === 'admin' || 
+                       userRole === 'ADMIN' || 
+                       userRole === 'super_admin' ||
+                       userRole === 'Super Admin' ||
+                       userRole === 'administrator' ||
+                       userRole === 'Administrator';
+        
+        console.log('✅ Is admin?', isAdmin);
+        
+        if (isAdmin) {
+          console.log('➡️ Redirecting to /admin');
+          navigate('/admin');
         } else {
+          console.log('➡️ Redirecting to /');
           navigate('/');
         }
       } else {
+        console.log('⚠️ No token found, redirecting to home');
         navigate('/');
       }
     } catch (err) {
+      console.error('❌ Signin error:', err);
       setError(err.response?.data?.detail || "Signin failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // const handleGoogleSuccess = async (credentialResponse) => {
-  //   setGoogleLoading(true);
-  //   setError(null);
-  //   
-  //   try {
-  //     const result = await googleLogin(credentialResponse.credential);
-  //     
-  //     const token = result.token || result.access_token;
-  //     if (token) {
-  //       localStorage.setItem('authToken', token);
-  //       
-  //       const userRes = await fetch('https://dailybasket.cloud/auth/me', {
-  //         headers: {
-  //           'Authorization': `Bearer ${token}`,
-  //           'Content-Type': 'application/json'
-  //         }
-  //       });
-  //       
-  //       if (userRes.ok) {
-  //         const userData = await userRes.json();
-  //         let userRole = userData.user?.role || userData.role || userData.data?.role;
-  //         
-  //         const isAdmin = userRole === 'admin' || 
-  //                        userRole === 'ADMIN' || 
-  //                        userRole === 'super_admin';
-  //         
-  //         if (isAdmin) {
-  //           navigate('/admin');
-  //         } else {
-  //           navigate('/');
-  //         }
-  //       } else {
-  //         navigate('/');
-  //       }
-  //     } else {
-  //       navigate('/');
-  //     }
-  //   } catch (err) {
-  //     setError(err.userMessage || "Google login failed. Please try again.");
-  //   } finally {
-  //     setGoogleLoading(false);
-  //   }
-  // };
-
-  // const handleGoogleError = () => {
-  //   setError("Google login failed. Please check your Google Client ID configuration.");
-  //   setGoogleLoading(false);
-  // };
-
   return (
-    // <GoogleOAuthProvider clientId={googleClientId}>
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden">
       <FloatingProduce />
       
@@ -167,38 +115,6 @@ const SigninPage = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Google Sign In Button - Commented Out */}
-              {/* <div className="mb-6">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  useOneTap={false}
-                  text="signin_with"
-                  shape="rectangular"
-                  theme="outline"
-                  size="large"
-                  width="100%"
-                />
-                {googleLoading && (
-                  <div className="mt-2 text-center text-sm text-gray-500">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-[#2E7D32] rounded-full animate-spin" />
-                      Signing in...
-                    </div>
-                  </div>
-                )}
-              </div> */}
-
-              {/* Divider - Commented Out */}
-              {/* <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500">Or continue with</span>
-                </div>
-              </div> */}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -268,7 +184,6 @@ const SigninPage = () => {
         </div>
       </div>
     </div>
-    // </GoogleOAuthProvider>
   );
 };
 

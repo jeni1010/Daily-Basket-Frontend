@@ -7,6 +7,24 @@ import {
 import { ordersApi } from "../../services/ordersApi";
 import { customersApi } from "../../services/customersApi";
 
+// Updated color palette
+const COLORS = {
+  primary: '#3B82F6',
+  primaryDark: '#2563EB',
+  primaryLight: '#60A5FA',
+  primaryBg: 'rgba(59, 130, 246, 0.1)',
+  textPrimary: '#1E293B',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  info: '#3B82F6',
+  bgMain: '#F8FAFC',
+  cardBg: '#FFFFFF',
+};
+
 const statusColors = {
   placed: { bg: "bg-amber-100", text: "text-amber-700", icon: <Clock className="w-3 h-3" /> },
   pending: { bg: "bg-amber-100", text: "text-amber-700", icon: <Clock className="w-3 h-3" /> },
@@ -17,7 +35,6 @@ const statusColors = {
   cancelled: { bg: "bg-red-100", text: "text-red-700", icon: <XCircle className="w-3 h-3" /> },
 };
 
-// Helper function to calculate order total from items
 const calculateOrderTotal = (order) => {
   if (order.grand_total && order.grand_total > 0) {
     return order.grand_total;
@@ -39,7 +56,6 @@ const calculateOrderTotal = (order) => {
   return 0;
 };
 
-// Helper function to map order status for display
 const getDisplayStatus = (status) => {
   if (status === 'pending') return 'placed';
   return status;
@@ -59,7 +75,6 @@ export function AdminOrders() {
     total: 0,
     totalPages: 0
   });
-  // Cache for customer data to avoid repeated API calls
   const [customerCache, setCustomerCache] = useState({});
   const [loadingCustomers, setLoadingCustomers] = useState(false);
 
@@ -79,19 +94,15 @@ export function AdminOrders() {
     fetchOrders();
   }, [filterStatus, pagination.page]);
 
-  // Function to fetch customer details by ID
   const fetchCustomerDetails = async (customerId) => {
     if (!customerId) return null;
     
-    // Check cache first
     if (customerCache[customerId]) {
       return customerCache[customerId];
     }
     
     try {
       const response = await customersApi.getById(customerId);
-      
-      // Extract customer data from response
       let customerData = null;
       if (response && response.data) {
         customerData = response.data;
@@ -101,7 +112,6 @@ export function AdminOrders() {
         customerData = response;
       }
       
-      // Update cache
       setCustomerCache(prev => ({
         ...prev,
         [customerId]: customerData
@@ -113,13 +123,11 @@ export function AdminOrders() {
     }
   };
 
-  // Function to enrich orders with customer details
   const enrichOrdersWithCustomerDetails = async (ordersList) => {
     if (!ordersList || ordersList.length === 0) return ordersList;
     
     setLoadingCustomers(true);
     
-    // Collect unique customer IDs that need fetching
     const customerIdsToFetch = [];
     ordersList.forEach(order => {
       if (order.customer_id && !customerCache[order.customer_id]) {
@@ -127,16 +135,13 @@ export function AdminOrders() {
       }
     });
     
-    // Remove duplicates
     const uniqueCustomerIds = [...new Set(customerIdsToFetch)];
     
-    // Fetch all missing customers in parallel
     if (uniqueCustomerIds.length > 0) {
       const fetchPromises = uniqueCustomerIds.map(id => fetchCustomerDetails(id));
       await Promise.all(fetchPromises);
     }
     
-    // Enrich orders with cached customer data
     const enrichedOrders = ordersList.map(order => {
       if (order.customer_id && customerCache[order.customer_id]) {
         const customerData = customerCache[order.customer_id];
@@ -188,7 +193,6 @@ export function AdminOrders() {
         totalCount = data.total || data.data.length;
       }
       
-      // Enrich orders with customer details from customer API
       const enrichedOrders = await enrichOrdersWithCustomerDetails(ordersList);
       
       setOrders(enrichedOrders);
@@ -230,8 +234,8 @@ export function AdminOrders() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#3E7C47] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading orders...</p>
+          <div className="w-12 h-12 border-4 border-[#3B82F6] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#64748B]">Loading orders...</p>
         </div>
       </div>
     );
@@ -241,22 +245,22 @@ export function AdminOrders() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Track and manage customer orders</p>
+          <h1 className="text-2xl font-bold text-[#1E293B]">Order Management</h1>
+          <p className="text-sm text-[#64748B] mt-1">Track and manage customer orders</p>
         </div>
         <button 
           onClick={() => fetchOrders()}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#3B82F6] text-white rounded-xl text-sm font-medium hover:bg-[#2563EB] transition-all shadow-sm"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
       {loadingCustomers && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+        <div className="bg-[rgba(59,130,246,0.1)] border border-[#3B82F6]/20 rounded-xl p-3 text-center">
           <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-sm text-blue-600">Loading customer details...</p>
+            <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm text-[#3B82F6]">Loading customer details...</p>
           </div>
         </div>
       )}
@@ -284,10 +288,10 @@ export function AdminOrders() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div 
           onClick={() => handleFilterClick("all")}
-          className="bg-white rounded-xl p-3 border text-center hover:shadow-sm transition-all cursor-pointer border-gray-100"
+          className="bg-white rounded-xl p-3 border text-center hover:shadow-sm transition-all cursor-pointer border-[#E2E8F0]"
         >
-          <p className="text-2xl font-bold text-gray-900">{statusStats.total}</p>
-          <p className="text-xs text-gray-500">Total Orders</p>
+          <p className="text-2xl font-bold text-[#1E293B]">{statusStats.total}</p>
+          <p className="text-xs text-[#64748B]">Total Orders</p>
         </div>
         <div 
           onClick={() => handleFilterClick("placed")}
@@ -327,30 +331,30 @@ export function AdminOrders() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
         <input
           type="text"
           placeholder="Search by order ID or customer..."
           value={searchTerm}
           onChange={handleSearchChange}
-          className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E7C47]/20 focus:border-[#3E7C47]"
+          className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order ID</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="text-left px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Order ID</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Date</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Customer</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Amount</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[#E2E8F0]">
               {orders.map((order, idx) => {
                 const orderTotal = calculateOrderTotal(order);
                 const displayStatus = getDisplayStatus(order.order_status);
@@ -361,34 +365,34 @@ export function AdminOrders() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="hover:bg-gray-50 transition-colors group"
+                    className="hover:bg-[#F8FAFC] transition-colors group"
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-800">
+                        <Package className="w-4 h-4 text-[#94A3B8]" />
+                        <span className="text-sm font-medium text-[#1E293B]">
                           {order.order_number || order.id}
                         </span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-sm text-gray-500">
+                        <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
+                        <span className="text-sm text-[#64748B]">
                           {new Date(order.created_at).toLocaleDateString()}
                         </span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-[#3E7C47]/10 to-[#2E5C37]/10 rounded-lg flex items-center justify-center">
-                          <User className="w-4 h-4 text-[#3E7C47]" />
+                        <div className="w-8 h-8 bg-[rgba(59,130,246,0.1)] rounded-lg flex items-center justify-center">
+                          <User className="w-4 h-4 text-[#3B82F6]" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-800">
+                          <p className="text-sm font-medium text-[#1E293B]">
                             {order.customer_name || "Loading..."}
                           </p>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-[#94A3B8]">
                             {order.customer_email || ""}
                           </p>
                         </div>
@@ -396,7 +400,7 @@ export function AdminOrders() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1">
-                        <span className="text-sm font-bold text-[#3E7C47]">
+                        <span className="text-sm font-bold text-[#3B82F6]">
                           {"₹" + orderTotal.toLocaleString()}
                         </span>
                       </div>
@@ -408,18 +412,16 @@ export function AdminOrders() {
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setShowDetailsModal(true);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setShowDetailsModal(true);
+                        }}
+                        className="p-1.5 text-[#94A3B8] hover:text-[#3B82F6] hover:bg-[rgba(59,130,246,0.1)] rounded-lg transition-colors"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </td>
                   </motion.tr>
                 );
@@ -428,12 +430,12 @@ export function AdminOrders() {
               {orders.length === 0 && !loading && !error && (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
-                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No orders found</p>
-                    <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filter</p>
+                    <Package className="w-12 h-12 text-[#94A3B8] mx-auto mb-3" />
+                    <p className="text-[#64748B]">No orders found</p>
+                    <p className="text-xs text-[#94A3B8] mt-1">Try adjusting your search or filter</p>
                     <button
                       onClick={() => fetchOrders()}
-                      className="mt-2 text-sm text-[#3E7C47] hover:underline"
+                      className="mt-2 text-sm text-[#3B82F6] hover:underline"
                     >
                       Refresh Orders
                     </button>
@@ -444,24 +446,23 @@ export function AdminOrders() {
           </table>
         </div>
         
-        {/* Only show pagination if there are more than 100 orders */}
         {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
-            <div className="text-xs text-gray-500">
+          <div className="flex items-center justify-between px-5 py-4 border-t border-[#E2E8F0]">
+            <div className="text-xs text-[#64748B]">
               Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} orders
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                 disabled={pagination.page === 1}
-                className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-3 py-1 text-sm bg-white border border-[#E2E8F0] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#F8FAFC]"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                 disabled={pagination.page === pagination.totalPages}
-                className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-3 py-1 text-sm bg-white border border-[#E2E8F0] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#F8FAFC]"
               >
                 Next
               </button>
@@ -479,77 +480,77 @@ export function AdminOrders() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between">
+              <div className="sticky top-0 bg-white border-b border-[#E2E8F0] p-5 flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-800">Order Details</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{selectedOrder.order_number || selectedOrder.id}</p>
+                  <h3 className="font-semibold text-[#1E293B]">Order Details</h3>
+                  <p className="text-xs text-[#64748B] mt-0.5">{selectedOrder.order_number || selectedOrder.id}</p>
                 </div>
-                <button onClick={() => setShowDetailsModal(false)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                <button onClick={() => setShowDetailsModal(false)} className="p-1.5 text-[#94A3B8] hover:bg-[#F8FAFC] rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-500">Order Date</p>
-                    <p className="text-sm font-medium text-gray-800">
+                  <div className="bg-[#F8FAFC] rounded-xl p-3">
+                    <p className="text-xs text-[#64748B]">Order Date</p>
+                    <p className="text-sm font-medium text-[#1E293B]">
                       {new Date(selectedOrder.created_at).toLocaleString()}
                     </p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-500">Payment Method</p>
-                    <p className="text-sm font-medium text-gray-800 capitalize">
+                  <div className="bg-[#F8FAFC] rounded-xl p-3">
+                    <p className="text-xs text-[#64748B]">Payment Method</p>
+                    <p className="text-sm font-medium text-[#1E293B] capitalize">
                       {selectedOrder.payment_method || "N/A"}
                     </p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-500">Payment Status</p>
-                    <p className="text-sm font-medium text-gray-800 capitalize">
+                  <div className="bg-[#F8FAFC] rounded-xl p-3">
+                    <p className="text-xs text-[#64748B]">Payment Status</p>
+                    <p className="text-sm font-medium text-[#1E293B] capitalize">
                       {selectedOrder.payment_status || "N/A"}
                     </p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-500">Order Status</p>
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full mt-1">
+                  <div className="bg-[#F8FAFC] rounded-xl p-3">
+                    <p className="text-xs text-[#64748B]">Order Status</p>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full">
                       {getDisplayStatus(selectedOrder.order_status)}
                     </span>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-2">Customer Information</h4>
+                <div className="bg-[#F8FAFC] rounded-xl p-3">
+                  <h4 className="text-sm font-semibold text-[#1E293B] mb-2">Customer Information</h4>
                   <div className="space-y-1">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[#64748B]">
                       Name: {selectedOrder.customer_name || "N/A"}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[#64748B]">
                       Email: {selectedOrder.customer_email || "N/A"}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[#64748B]">
                       Phone: {selectedOrder.customer_phone || "N/A"}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-2">Order Items</h4>
+                <div className="bg-[#F8FAFC] rounded-xl p-3">
+                  <h4 className="text-sm font-semibold text-[#1E293B] mb-2">Order Items</h4>
                   <div className="space-y-2">
                     {selectedOrder.items?.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">
+                      <div key={idx} className="flex items-center justify-between py-2 border-b border-[#E2E8F0] last:border-0">
                         <div>
-                          <p className="text-sm font-medium text-gray-800">{item.product_name}</p>
-                          <p className="text-xs text-gray-500">Qty: {item.quantity} × {"₹" + item.price}</p>
+                          <p className="text-sm font-medium text-[#1E293B]">{item.product_name}</p>
+                          <p className="text-xs text-[#64748B]">Qty: {item.quantity} × {"₹" + item.price}</p>
                         </div>
-                        <p className="text-sm font-semibold text-[#3E7C47]">{"₹" + item.subtotal}</p>
+                        <p className="text-sm font-semibold text-[#3B82F6]">{"₹" + item.subtotal}</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-[#3E7C47]/5 to-transparent rounded-xl p-3">
+                <div className="bg-gradient-to-r from-[rgba(59,130,246,0.05)] to-transparent rounded-xl p-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-800">Grand Total</p>
-                    <p className="text-xl font-bold text-[#3E7C47]">{"₹" + calculateOrderTotal(selectedOrder).toLocaleString()}</p>
+                    <p className="text-sm font-semibold text-[#1E293B]">Grand Total</p>
+                    <p className="text-xl font-bold text-[#3B82F6]">{"₹" + calculateOrderTotal(selectedOrder).toLocaleString()}</p>
                   </div>
                 </div>
               </div>

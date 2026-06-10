@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 import { customerApi } from "../services/customerApi";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { ProductCard } from "../components/ProductCard"; // Import the existing ProductCard
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -24,7 +25,6 @@ export default function LandingPage() {
   const [organicPicks, setOrganicPicks] = useState([]);
   const [dealsOfDay, setDealsOfDay] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [quantities, setQuantities] = useState({});
   const [greeting, setGreeting] = useState("");
 
   useEffect(() => {
@@ -68,150 +68,6 @@ export default function LandingPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity < 0) return;
-    setQuantities(prev => ({ ...prev, [productId]: newQuantity }));
-  };
-
-  const getQuantity = (productId) => {
-    return quantities[productId] || 0;
-  };
-
-  const handleAddToCartClick = (product, e) => {
-    e.stopPropagation();
-    const currentQty = getQuantity(product._id);
-    const newQty = currentQty + 1;
-    updateQuantity(product._id, newQty);
-    addToCart({
-      id: product._id,
-      slug: product.slug,
-      name: product.name,
-      price: product.price,
-      originalPrice: product.compare_price,
-      image: product.main_image,
-      unit: product.unit,
-      discount: product.compare_price ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100) : 0,
-    }, 1);
-  };
-
-  const handleIncrement = (product, e) => {
-    e.stopPropagation();
-    const currentQty = getQuantity(product._id);
-    const newQty = currentQty + 1;
-    updateQuantity(product._id, newQty);
-    addToCart({
-      id: product._id,
-      slug: product.slug,
-      name: product.name,
-      price: product.price,
-      originalPrice: product.compare_price,
-      image: product.main_image,
-      unit: product.unit,
-      discount: product.compare_price ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100) : 0,
-    }, 1);
-  };
-
-  const handleDecrement = (product, e) => {
-    e.stopPropagation();
-    const currentQty = getQuantity(product._id);
-    if (currentQty > 0) {
-      const newQty = currentQty - 1;
-      updateQuantity(product._id, newQty);
-    }
-  };
-
-  const ProductCard = ({ product }) => {
-    const isWishlisted = wishlist.includes(product._id);
-    const discount = product.compare_price ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100) : 0;
-    const quantity = getQuantity(product._id);
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        viewport={{ once: true }}
-        whileHover={{ y: -8 }}
-        className="group bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer"
-        onClick={() => navigate(`/product/${product.slug}`)}
-      >
-        <div className="relative overflow-hidden aspect-square">
-          <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-            {product.main_image ? (
-              <img 
-                src={product.main_image} 
-                alt={product.name} 
-                className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
-                onError={(e) => { e.target.src = "https://placehold.co/200x200/3E7C47/white?text=Product"; }}
-              />
-            ) : (
-              <Package className="w-12 h-12 text-gray-300" />
-            )}
-          </div>
-          {discount > 0 && (
-            <div className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-md shadow-md z-10">
-              {discount}% OFF
-            </div>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleWishlist(product); }}
-            className="absolute top-2 right-2 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center hover:scale-110 transition-all duration-200 z-10"
-          >
-            <Heart className={`w-4 h-4 transition-colors ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}`} />
-          </button>
-        </div>
-        
-        <div className="p-3">
-          <h3 className="font-semibold text-gray-800 text-sm line-clamp-1 mb-1 group-hover:text-green-600 transition-colors">{product.name}</h3>
-          <p className="text-xs text-gray-400">{product.unit || "Fresh Produce"}</p>
-          
-          <div className="flex items-center gap-1 mt-1.5">
-            <div className="flex items-center">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className={`w-3 h-3 ${i < 4 ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`} />
-              ))}
-            </div>
-            <span className="text-xs text-gray-500">(4.5)</span>
-          </div>
-          
-          <div className="flex items-center justify-between mt-2">
-            <div>
-              <span className="text-base font-bold text-green-600">₹{product.price}</span>
-              {product.compare_price && (
-                <span className="text-xs text-gray-400 line-through ml-1">₹{product.compare_price}</span>
-              )}
-            </div>
-            
-            {quantity > 0 ? (
-              <div className="flex items-center gap-2 bg-green-600 rounded-lg p-1">
-                <button
-                  onClick={(e) => handleDecrement(product, e)}
-                  className="w-6 h-6 bg-white rounded-md flex items-center justify-center hover:bg-gray-100 transition-all"
-                >
-                  <Minus className="w-3 h-3 text-green-600" />
-                </button>
-                <span className="text-white text-sm font-semibold w-5 text-center">{quantity}</span>
-                <button
-                  onClick={(e) => handleIncrement(product, e)}
-                  className="w-6 h-6 bg-white rounded-md flex items-center justify-center hover:bg-gray-100 transition-all"
-                >
-                  <Plus className="w-3 h-3 text-green-600" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={(e) => handleAddToCartClick(product, e)}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-all duration-200 flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" /> Add
-              </button>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    );
   };
 
   const CategoryCard = ({ category, index }) => {
@@ -331,11 +187,29 @@ export default function LandingPage() {
     </div>
   );
 
-  // FIXED: Updated banner images with working URLs
+  // Updated banner images with working URLs
   const bannerImages = {
     banner1: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&h=400&fit=crop",
     banner2: "https://images.unsplash.com/photo-1610348725532-8438b8e8a5e8?w=1200&h=400&fit=crop"
   };
+
+  // Transform product data to match ProductCard props
+  const transformProductForCard = (product) => ({
+    id: product._id,
+    _id: product._id,
+    slug: product.slug,
+    name: product.name,
+    price: product.price,
+    originalPrice: product.compare_price,
+    image: product.main_image,
+    unit: product.unit,
+    discount: product.compare_price ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100) : 0,
+    inStock: (product.stock_quantity || 0) > 0,
+    rating: product.rating || 4.5,
+    reviewCount: product.reviewCount || 0,
+    isTrending: product.is_trending,
+    isFeatured: product.is_featured
+  });
 
   if (loading) {
     return (
@@ -384,7 +258,7 @@ export default function LandingPage() {
           <SectionHeader title="Trending Now" subtitle="Most popular items this week" link="/products?trending=true" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {trendingProducts.slice(0, 6).map((product) => (
-              <ProductCard key={product._id} product={product} />
+              <ProductCard key={product._id} product={transformProductForCard(product)} />
             ))}
           </div>
         </div>
@@ -403,7 +277,7 @@ export default function LandingPage() {
           <SectionHeader title="Our Top Picks" link="/products?category=fruits" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {freshArrivals.slice(0, 6).map((product) => (
-              <ProductCard key={product._id} product={product} />
+              <ProductCard key={product._id} product={transformProductForCard(product)} />
             ))}
           </div>
         </div>
@@ -413,7 +287,7 @@ export default function LandingPage() {
           <SectionHeader title="Organic Picks" subtitle="100% certified organic" link="/products?organic=true" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {organicPicks.slice(0, 6).map((product) => (
-              <ProductCard key={product._id} product={product} />
+              <ProductCard key={product._id} product={transformProductForCard(product)} />
             ))}
           </div>
         </div>
@@ -423,7 +297,7 @@ export default function LandingPage() {
           <SectionHeader title="Best Sellers" subtitle="Customer favorites" link="/products?trending=true" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {dealsOfDay.slice(0, 6).map((product) => (
-              <ProductCard key={product._id} product={product} />
+              <ProductCard key={product._id} product={transformProductForCard(product)} />
             ))}
           </div>
         </div>
@@ -434,7 +308,7 @@ export default function LandingPage() {
           <SectionHeader title="Recommended For You" subtitle="Based on your preferences" link="/products" />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {featuredProducts.slice(0, 6).map((product) => (
-              <ProductCard key={product._id} product={product} />
+              <ProductCard key={product._id} product={transformProductForCard(product)} />
             ))}
           </div>
         </div>
