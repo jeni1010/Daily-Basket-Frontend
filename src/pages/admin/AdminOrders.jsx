@@ -53,6 +53,10 @@ const calculateOrderTotal = (order) => {
     return subtotal + shipping + tax;
   }
   
+  if (order.summary && order.summary.total) {
+    return order.summary.total;
+  }
+  
   return 0;
 };
 
@@ -69,9 +73,18 @@ export function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({
+    placed: 0,
+    confirmed: 0,
+    packed: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0
+  });
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 100,
+    limit: 20,
     total: 0,
     totalPages: 0
   });
@@ -92,7 +105,47 @@ export function AdminOrders() {
 
   useEffect(() => {
     fetchOrders();
-  }, [filterStatus, pagination.page]);
+    fetchStatusCounts(); // ✅ Fetch status counts separately
+  }, [filterStatus]);
+
+  // ✅ New function to fetch status counts for all orders
+  const fetchStatusCounts = async () => {
+    try {
+      // Fetch all orders without pagination to get accurate counts
+      const allOrders = await ordersApi.getAll({ limit: 100 });
+      
+      let ordersList = [];
+      if (allOrders && Array.isArray(allOrders)) {
+        ordersList = allOrders;
+      } else if (allOrders && allOrders.orders && Array.isArray(allOrders.orders)) {
+        ordersList = allOrders.orders;
+      } else if (allOrders && allOrders.data && Array.isArray(allOrders.data)) {
+        ordersList = allOrders.data;
+      }
+      
+      // Apply status filter if needed
+      let filteredOrders = ordersList;
+      if (filterStatus !== "all") {
+        filteredOrders = ordersList.filter(o => o.order_status === filterStatus);
+      }
+      
+      // Calculate counts
+      const counts = {
+        placed: ordersList.filter(o => o.order_status === "placed" || o.order_status === "pending").length,
+        confirmed: ordersList.filter(o => o.order_status === "confirmed").length,
+        packed: ordersList.filter(o => o.order_status === "packed").length,
+        shipped: ordersList.filter(o => o.order_status === "shipped").length,
+        delivered: ordersList.filter(o => o.order_status === "delivered").length,
+        cancelled: ordersList.filter(o => o.order_status === "cancelled").length,
+      };
+      
+      setStatusCounts(counts);
+      setTotalOrdersCount(ordersList.length);
+      
+    } catch (error) {
+      console.error('Error fetching status counts:', error);
+    }
+  };
 
   const fetchCustomerDetails = async (customerId) => {
     if (!customerId) return null;
@@ -119,6 +172,7 @@ export function AdminOrders() {
       
       return customerData;
     } catch (error) {
+      console.error('Error fetching customer:', error);
       return null;
     }
   };
@@ -137,7 +191,7 @@ export function AdminOrders() {
     
     const uniqueCustomerIds = [...new Set(customerIdsToFetch)];
     
-    if (uniqueCustomerIds.length > 0) {
+    if (uniqueCustomerIds.length > 0 && uniqueCustomerIds.length <= 20) {
       const fetchPromises = uniqueCustomerIds.map(id => fetchCustomerDetails(id));
       await Promise.all(fetchPromises);
     }
@@ -147,9 +201,9 @@ export function AdminOrders() {
         const customerData = customerCache[order.customer_id];
         return {
           ...order,
-          customer_name: (customerData && (customerData.name || customerData.full_name)) || "",
-          customer_email: (customerData && customerData.email) || "",
-          customer_phone: (customerData && (customerData.phone || customerData.mobile)) || "",
+          customer_name: customerData?.name || customerData?.full_name || order.customer_name || "",
+          customer_email: customerData?.email || order.customer_email || "",
+          customer_phone: customerData?.phone || customerData?.mobile || order.customer_phone || "",
         };
       }
       return order;
@@ -203,27 +257,13 @@ export function AdminOrders() {
       }));
       
     } catch (error) {
+      console.error('Fetch orders error:', error);
       setError(error.message || "Failed to fetch orders. Please try again.");
       setOrders([]);
     } finally {
       setLoading(false);
     }
   };
-
-  const getStatusStats = () => {
-    const stats = {
-      total: orders.length,
-      placed: orders.filter(o => o.order_status === "placed" || o.order_status === "pending").length,
-      confirmed: orders.filter(o => o.order_status === "confirmed").length,
-      packed: orders.filter(o => o.order_status === "packed").length,
-      shipped: orders.filter(o => o.order_status === "shipped").length,
-      delivered: orders.filter(o => o.order_status === "delivered").length,
-      cancelled: orders.filter(o => o.order_status === "cancelled").length,
-    };
-    return stats;
-  };
-
-  const statusStats = getStatusStats();
 
   const handleFilterClick = (status) => {
     setFilterStatus(status);
@@ -249,7 +289,10 @@ export function AdminOrders() {
           <p className="text-sm text-[#64748B] mt-1">Track and manage customer orders</p>
         </div>
         <button 
-          onClick={() => fetchOrders()}
+          onClick={() => {
+            fetchOrders();
+            fetchStatusCounts();
+          }}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#3B82F6] text-white rounded-xl text-sm font-medium hover:bg-[#2563EB] transition-all shadow-sm"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
@@ -275,7 +318,10 @@ export function AdminOrders() {
               <h4 className="text-sm font-semibold text-red-800">Error Loading Orders</h4>
               <p className="text-xs text-red-600 mt-1">{error}</p>
               <button 
-                onClick={() => fetchOrders()}
+                onClick={() => {
+                  fetchOrders();
+                  fetchStatusCounts();
+                }}
                 className="mt-2 text-xs text-red-700 underline hover:no-underline"
               >
                 Try again
@@ -285,51 +331,53 @@ export function AdminOrders() {
         </div>
       )}
 
+      {/* Status Cards - Now using accurate counts from fetchStatusCounts */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div 
           onClick={() => handleFilterClick("all")}
           className="bg-white rounded-xl p-3 border text-center hover:shadow-sm transition-all cursor-pointer border-[#E2E8F0]"
         >
-          <p className="text-2xl font-bold text-[#1E293B]">{statusStats.total}</p>
+          <p className="text-2xl font-bold text-[#1E293B]">{totalOrdersCount}</p>
           <p className="text-xs text-[#64748B]">Total Orders</p>
         </div>
         <div 
           onClick={() => handleFilterClick("placed")}
           className="bg-amber-50 rounded-xl p-3 border text-center cursor-pointer transition-all border-amber-100"
         >
-          <p className="text-2xl font-bold text-amber-700">{statusStats.placed}</p>
+          <p className="text-2xl font-bold text-amber-700">{statusCounts.placed}</p>
           <p className="text-xs text-amber-600">Placed</p>
         </div>
         <div 
           onClick={() => handleFilterClick("confirmed")}
           className="bg-blue-50 rounded-xl p-3 border text-center cursor-pointer transition-all border-blue-100"
         >
-          <p className="text-2xl font-bold text-blue-700">{statusStats.confirmed}</p>
+          <p className="text-2xl font-bold text-blue-700">{statusCounts.confirmed}</p>
           <p className="text-xs text-blue-600">Confirmed</p>
         </div>
         <div 
           onClick={() => handleFilterClick("packed")}
           className="bg-purple-50 rounded-xl p-3 border text-center cursor-pointer transition-all border-purple-100"
         >
-          <p className="text-2xl font-bold text-purple-700">{statusStats.packed}</p>
+          <p className="text-2xl font-bold text-purple-700">{statusCounts.packed}</p>
           <p className="text-xs text-purple-600">Packed</p>
         </div>
         <div 
           onClick={() => handleFilterClick("shipped")}
           className="bg-indigo-50 rounded-xl p-3 border text-center cursor-pointer transition-all border-indigo-100"
         >
-          <p className="text-2xl font-bold text-indigo-700">{statusStats.shipped}</p>
+          <p className="text-2xl font-bold text-indigo-700">{statusCounts.shipped}</p>
           <p className="text-xs text-indigo-600">Shipped</p>
         </div>
         <div 
           onClick={() => handleFilterClick("delivered")}
           className="bg-emerald-50 rounded-xl p-3 border text-center cursor-pointer transition-all border-emerald-100"
         >
-          <p className="text-2xl font-bold text-emerald-700">{statusStats.delivered}</p>
+          <p className="text-2xl font-bold text-emerald-700">{statusCounts.delivered}</p>
           <p className="text-xs text-emerald-600">Delivered</p>
         </div>
       </div>
 
+      {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
         <input
@@ -341,6 +389,7 @@ export function AdminOrders() {
         />
       </div>
 
+      {/* Orders Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -371,7 +420,7 @@ export function AdminOrders() {
                       <div className="flex items-center gap-2">
                         <Package className="w-4 h-4 text-[#94A3B8]" />
                         <span className="text-sm font-medium text-[#1E293B]">
-                          {order.order_number || order.id}
+                          {order.order_number || order.id?.slice(-8)}
                         </span>
                       </div>
                     </td>
@@ -379,7 +428,7 @@ export function AdminOrders() {
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
                         <span className="text-sm text-[#64748B]">
-                          {new Date(order.created_at).toLocaleDateString()}
+                          {order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A"}
                         </span>
                       </div>
                     </td>
@@ -390,7 +439,7 @@ export function AdminOrders() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-[#1E293B]">
-                            {order.customer_name || "Loading..."}
+                            {order.customer_name || "Guest"}
                           </p>
                           <p className="text-xs text-[#94A3B8]">
                             {order.customer_email || ""}
@@ -401,7 +450,7 @@ export function AdminOrders() {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-bold text-[#3B82F6]">
-                          {"₹" + orderTotal.toLocaleString()}
+                          ₹{orderTotal.toLocaleString()}
                         </span>
                       </div>
                     </td>
@@ -434,7 +483,10 @@ export function AdminOrders() {
                     <p className="text-[#64748B]">No orders found</p>
                     <p className="text-xs text-[#94A3B8] mt-1">Try adjusting your search or filter</p>
                     <button
-                      onClick={() => fetchOrders()}
+                      onClick={() => {
+                        fetchOrders();
+                        fetchStatusCounts();
+                      }}
                       className="mt-2 text-sm text-[#3B82F6] hover:underline"
                     >
                       Refresh Orders
@@ -471,6 +523,7 @@ export function AdminOrders() {
         )}
       </div>
 
+      {/* Order Details Modal */}
       <AnimatePresence>
         {showDetailsModal && selectedOrder && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -494,7 +547,7 @@ export function AdminOrders() {
                   <div className="bg-[#F8FAFC] rounded-xl p-3">
                     <p className="text-xs text-[#64748B]">Order Date</p>
                     <p className="text-sm font-medium text-[#1E293B]">
-                      {new Date(selectedOrder.created_at).toLocaleString()}
+                      {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : "N/A"}
                     </p>
                   </div>
                   <div className="bg-[#F8FAFC] rounded-xl p-3">
@@ -539,9 +592,9 @@ export function AdminOrders() {
                       <div key={idx} className="flex items-center justify-between py-2 border-b border-[#E2E8F0] last:border-0">
                         <div>
                           <p className="text-sm font-medium text-[#1E293B]">{item.product_name}</p>
-                          <p className="text-xs text-[#64748B]">Qty: {item.quantity} × {"₹" + item.price}</p>
+                          <p className="text-xs text-[#64748B]">Qty: {item.quantity} × ₹{item.price}</p>
                         </div>
-                        <p className="text-sm font-semibold text-[#3B82F6]">{"₹" + item.subtotal}</p>
+                        <p className="text-sm font-semibold text-[#3B82F6]">₹{item.subtotal}</p>
                       </div>
                     ))}
                   </div>
@@ -550,7 +603,7 @@ export function AdminOrders() {
                 <div className="bg-gradient-to-r from-[rgba(59,130,246,0.05)] to-transparent rounded-xl p-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-[#1E293B]">Grand Total</p>
-                    <p className="text-xl font-bold text-[#3B82F6]">{"₹" + calculateOrderTotal(selectedOrder).toLocaleString()}</p>
+                    <p className="text-xl font-bold text-[#3B82F6]">₹{calculateOrderTotal(selectedOrder).toLocaleString()}</p>
                   </div>
                 </div>
               </div>

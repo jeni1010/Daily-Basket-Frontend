@@ -1,5 +1,5 @@
 // src/context/AppContext.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { customerApi } from '../services/customerApi';
 
@@ -23,6 +23,11 @@ export const AppProvider = ({ children }) => {
   
   const userRole = user?.role || user?.user?.role;
   const isAdmin = userRole === 'admin' || userRole === 'ADMIN' || userRole === 'super_admin';
+  
+  // Refs for preventing duplicate wishlist toggles
+  const togglingWishlistRef = useRef(false);
+  const lastWishlistToggleRef = useRef({});
+  const pendingWishlistOperations = useRef(new Map());
   
   // Initialize cart from localStorage on page load
   const [cart, setCart] = useState(() => {
@@ -95,7 +100,6 @@ export const AppProvider = ({ children }) => {
       loadCartFromBackend();
       loadWishlistFromBackend();
     } else if (!user) {
-      // Guest user - load from localStorage only
       setCartLoading(false);
       setWishlistLoading(false);
     }
@@ -121,11 +125,10 @@ export const AppProvider = ({ children }) => {
           unit: item.unit,
           originalPrice: item.compare_price,
           slug: item.slug,
-          variantSku: item.variant_sku
+          variant_sku: item.variant_sku || "",
         }));
         setCart(transformedCart);
       } else {
-        // If backend cart is empty but local cart exists, sync local to backend
         const savedCart = localStorage.getItem(CART_STORAGE_KEY);
         if (savedCart) {
           const localCart = JSON.parse(savedCart);
@@ -197,9 +200,8 @@ export const AppProvider = ({ children }) => {
     try {
       setSyncing(true);
       for (const item of localCart) {
-        await customerApi.cart.add(item.id, item.quantity, item.variantSku);
+        await customerApi.cart.add(item.id, item.quantity, item.variant_sku || "");
       }
-      // Clear local cart after sync
       localStorage.removeItem(CART_STORAGE_KEY);
     } catch (error) {
       console.error("Error syncing cart:", error);
@@ -210,14 +212,15 @@ export const AppProvider = ({ children }) => {
 
   const addToCart = async (product, quantity = 1, variantSku = null) => {
     const productId = product.id || product._id;
+    const finalVariantSku = variantSku || product.variant_sku || "";
     
     if (isAdmin) {
       setCart(prevCart => {
-        const existingItem = prevCart.find(item => (item.id === productId) && (item.variantSku === variantSku));
+        const existingItem = prevCart.find(item => (item.id === productId) && (item.variant_sku === finalVariantSku));
         let newCart;
         if (existingItem) {
           newCart = prevCart.map(item =>
-            (item.id === productId && item.variantSku === variantSku)
+            (item.id === productId && item.variant_sku === finalVariantSku)
               ? { ...item, quantity: item.quantity + quantity }
               : item
           );
@@ -232,7 +235,7 @@ export const AppProvider = ({ children }) => {
             slug: product.slug,
             discount: product.discount,
             quantity: quantity,
-            variantSku: variantSku
+            variant_sku: finalVariantSku
           }];
         }
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
@@ -242,14 +245,14 @@ export const AppProvider = ({ children }) => {
     }
     
     try {
-      await customerApi.cart.add(productId, quantity, variantSku);
+      await customerApi.cart.add(productId, quantity, finalVariantSku);
       
       setCart(prevCart => {
-        const existingItem = prevCart.find(item => (item.id === productId) && (item.variantSku === variantSku));
+        const existingItem = prevCart.find(item => (item.id === productId) && (item.variant_sku === finalVariantSku));
         let newCart;
         if (existingItem) {
           newCart = prevCart.map(item =>
-            (item.id === productId && item.variantSku === variantSku)
+            (item.id === productId && item.variant_sku === finalVariantSku)
               ? { ...item, quantity: item.quantity + quantity }
               : item
           );
@@ -264,7 +267,7 @@ export const AppProvider = ({ children }) => {
             slug: product.slug,
             discount: product.discount,
             quantity: quantity,
-            variantSku: variantSku
+            variant_sku: finalVariantSku
           }];
         }
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
@@ -273,13 +276,12 @@ export const AppProvider = ({ children }) => {
       
     } catch (error) {
       console.error('Error adding to cart:', error);
-      // Fallback to local only
       setCart(prevCart => {
-        const existingItem = prevCart.find(item => (item.id === productId) && (item.variantSku === variantSku));
+        const existingItem = prevCart.find(item => (item.id === productId) && (item.variant_sku === finalVariantSku));
         let newCart;
         if (existingItem) {
           newCart = prevCart.map(item =>
-            (item.id === productId && item.variantSku === variantSku)
+            (item.id === productId && item.variant_sku === finalVariantSku)
               ? { ...item, quantity: item.quantity + quantity }
               : item
           );
@@ -294,7 +296,7 @@ export const AppProvider = ({ children }) => {
             slug: product.slug,
             discount: product.discount,
             quantity: quantity,
-            variantSku: variantSku
+            variant_sku: finalVariantSku
           }];
         }
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
@@ -303,45 +305,45 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // FIXED: removeFromCart - ensures UI updates immediately
   const removeFromCart = useCallback(async (productId, variantSku = null) => {
+    const finalVariantSku = variantSku || "";
+    
     if (isAdmin) {
       setCart(prevCart => {
-        const newCart = prevCart.filter(item => !(item.id === productId && item.variantSku === variantSku));
+        const newCart = prevCart.filter(item => !(item.id === productId && item.variant_sku === finalVariantSku));
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
         return newCart;
       });
       return;
     }
     
-    // Optimistically update UI first
     setCart(prevCart => {
-      const newCart = prevCart.filter(item => !(item.id === productId && item.variantSku === variantSku));
+      const newCart = prevCart.filter(item => !(item.id === productId && item.variant_sku === finalVariantSku));
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
       return newCart;
     });
     
     try {
-      await customerApi.cart.remove(productId, variantSku);
+      await customerApi.cart.remove(productId, finalVariantSku);
       console.log('Item removed from backend successfully');
     } catch (error) {
       console.error('Error removing from cart:', error);
-      // Revert on error - reload from backend
       await loadCartFromBackend();
     }
   }, [isAdmin, loadCartFromBackend]);
 
-  // FIXED: updateQuantity - ensures UI updates immediately with optimistic update
   const updateQuantity = useCallback(async (productId, quantity, variantSku = null) => {
+    const finalVariantSku = variantSku || "";
+    
     if (quantity <= 0) {
-      await removeFromCart(productId, variantSku);
+      await removeFromCart(productId, finalVariantSku);
       return;
     }
     
     if (isAdmin) {
       setCart(prevCart => {
         const newCart = prevCart.map(item =>
-          (item.id === productId && item.variantSku === variantSku) ? { ...item, quantity } : item
+          (item.id === productId && item.variant_sku === finalVariantSku) ? { ...item, quantity } : item
         );
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
         return newCart;
@@ -349,26 +351,23 @@ export const AppProvider = ({ children }) => {
       return;
     }
     
-    // Optimistically update UI first
     setCart(prevCart => {
       const newCart = prevCart.map(item =>
-        (item.id === productId && item.variantSku === variantSku) ? { ...item, quantity } : item
+        (item.id === productId && item.variant_sku === finalVariantSku) ? { ...item, quantity } : item
       );
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
       return newCart;
     });
     
     try {
-      await customerApi.cart.update(productId, quantity, variantSku);
+      await customerApi.cart.update(productId, quantity, finalVariantSku);
       console.log('Quantity updated on backend successfully');
     } catch (error) {
       console.error('Error updating cart quantity:', error);
-      // Revert on error - reload from backend
       await loadCartFromBackend();
     }
   }, [isAdmin, removeFromCart, loadCartFromBackend]);
 
-  // FIXED: clearCart - ensures UI updates immediately
   const clearCart = useCallback(async () => {
     if (isAdmin) {
       setCart([]);
@@ -377,7 +376,6 @@ export const AppProvider = ({ children }) => {
       return;
     }
     
-    // Optimistically clear UI first
     setCart([]);
     localStorage.removeItem(CART_STORAGE_KEY);
     localStorage.removeItem(CART_TOTAL_KEY);
@@ -387,7 +385,6 @@ export const AppProvider = ({ children }) => {
       console.log('Cart cleared from backend successfully');
     } catch (error) {
       console.error('Error clearing cart:', error);
-      // Revert on error - reload from backend
       await loadCartFromBackend();
     }
   }, [isAdmin, loadCartFromBackend]);
@@ -404,8 +401,29 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const toggleWishlist = async (product) => {
+  // ✅ FULLY FIXED: toggleWishlist with comprehensive duplicate prevention
+  const toggleWishlist = useCallback(async (product) => {
     const productId = product._id || product.id;
+    
+    // Check if this product is already being processed
+    if (pendingWishlistOperations.current.has(productId)) {
+      console.log(`❌ Product ${productId} already being processed, returning existing promise`);
+      return pendingWishlistOperations.current.get(productId);
+    }
+    
+    // Prevent duplicate toggles for the same product
+    if (togglingWishlistRef.current) {
+      console.log('❌ Already toggling another wishlist item, skipping...');
+      return;
+    }
+    
+    // Check if this product was recently toggled (1 second cooldown)
+    const lastToggle = lastWishlistToggleRef.current[productId];
+    if (lastToggle && (Date.now() - lastToggle) < 1000) {
+      console.log(`❌ Product ${productId} was toggled recently, skipping...`);
+      return;
+    }
+    
     const isInWishlist = wishlist.includes(productId);
     
     if (isAdmin) {
@@ -429,41 +447,66 @@ export const AppProvider = ({ children }) => {
       return;
     }
     
-    try {
-      if (isInWishlist) {
-        await customerApi.wishlist.remove(productId);
+    // Set refs to prevent duplicates
+    togglingWishlistRef.current = true;
+    lastWishlistToggleRef.current[productId] = Date.now();
+    
+    // Create the operation promise
+    const operationPromise = (async () => {
+      try {
+        // Optimistic update
+        if (isInWishlist) {
+          setWishlist(prev => prev.filter(id => id !== productId));
+          setWishlistProducts(prev => prev.filter(item => (item._id || item.id) !== productId));
+        } else {
+          setWishlist(prev => [...prev, productId]);
+          const wishlistProduct = {
+            _id: productId,
+            id: productId,
+            name: product.name,
+            price: product.price,
+            main_image: product.image || product.main_image,
+            unit: product.unit,
+            slug: product.slug,
+            compare_price: product.compare_price || product.originalPrice
+          };
+          setWishlistProducts(prev => [...prev, wishlistProduct]);
+        }
         
-        setWishlist(prev => prev.filter(id => id !== productId));
-        setWishlistProducts(prev => prev.filter(item => (item._id || item.id) !== productId));
+        // Make the API call
+        if (isInWishlist) {
+          await customerApi.wishlist.remove(productId);
+          console.log(`✅ Product ${productId} removed from wishlist`);
+        } else {
+          await customerApi.wishlist.add(productId);
+          console.log(`✅ Product ${productId} added to wishlist`);
+        }
         
-      } else {
-        await customerApi.wishlist.add(productId);
-        
-        const wishlistProduct = {
-          _id: productId,
-          id: productId,
-          name: product.name,
-          price: product.price,
-          main_image: product.image || product.main_image,
-          unit: product.unit,
-          slug: product.slug,
-          compare_price: product.compare_price || product.originalPrice
-        };
-        
-        setWishlist(prev => [...prev, productId]);
-        setWishlistProducts(prev => [...prev, wishlistProduct]);
+      } catch (error) {
+        // Revert on error
+        console.error('Error toggling wishlist:', error);
+        if (isInWishlist) {
+          setWishlist(prev => [...prev, productId]);
+          setWishlistProducts(prev => [...prev, product]);
+        } else {
+          setWishlist(prev => prev.filter(id => id !== productId));
+          setWishlistProducts(prev => prev.filter(item => (item._id || item.id) !== productId));
+        }
+        throw error;
+      } finally {
+        // Reset flags after delay
+        setTimeout(() => {
+          togglingWishlistRef.current = false;
+          pendingWishlistOperations.current.delete(productId);
+        }, 500);
       }
-      
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(wishlistProducts));
-      
-    } catch (error) {
-      console.error('Error toggling wishlist:', error);
-      if (!isInWishlist) {
-        setWishlist(prev => prev.filter(id => id !== productId));
-        setWishlistProducts(prev => prev.filter(item => (item._id || item.id) !== productId));
-      }
-    }
-  };
+    })();
+    
+    // Store the pending operation
+    pendingWishlistOperations.current.set(productId, operationPromise);
+    
+    return operationPromise;
+  }, [wishlist, isAdmin, wishlistProducts]);
 
   const checkIsInWishlist = (productId) => {
     return wishlist.includes(productId);

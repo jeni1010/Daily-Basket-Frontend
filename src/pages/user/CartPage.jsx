@@ -3,7 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Trash2, Plus, Minus, ShoppingBag, ArrowRight, Tag, Loader2,
-  Truck, CreditCard, Leaf, Headphones, ChevronRight, AlertCircle
+  Truck, CreditCard, Leaf, Headphones, ChevronRight, AlertCircle,
+  Gift, Percent, DollarSign, Ticket, X, Sparkles
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { customerApi } from "../../services/customerApi";
@@ -16,55 +17,152 @@ export function CartPage() {
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponDiscount, setCouponDiscount] = useState(0);
+  const [appliedCouponData, setAppliedCouponData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [updatingItemId, setUpdatingItemId] = useState(null);
+  
+  // Coupon modal states
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [couponError, setCouponError] = useState(null);
 
   useEffect(() => {
     loadCart();
+    fetchAvailableCoupons();
     window.scrollTo(0, 0);
   }, []);
 
-  const subtotal = cartTotal;
-  const discount = couponApplied ? couponDiscount : 0;
-  const taxes = Math.round(subtotal * 0.05);
-  const deliveryCharge = subtotal >= 200 ? 0 : 40;
-  const total = subtotal - discount + taxes + deliveryCharge;
+  // Debug: Log cart items to check variant_sku
+  useEffect(() => {
+    console.log('🛒 Cart items:', cart.map(item => ({
+      id: item.id,
+      name: item.name,
+      variant_sku: item.variant_sku || item.variantSku,
+      quantity: item.quantity
+    })));
+  }, [cart]);
 
-  const handleApplyCoupon = async () => {
-    setLoading(true);
+  const fetchAvailableCoupons = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      if (couponCode.toUpperCase() === "FRESH20") {
-        setCouponDiscount(Math.round(subtotal * 0.2));
-        setCouponApplied(true);
-        alert("🎉 Coupon applied! You saved 20%!");
-      } else if (couponCode.toUpperCase() === "SAVE50") {
-        setCouponDiscount(50);
-        setCouponApplied(true);
-        alert("🎉 Coupon applied! You saved ₹50!");
-      } else {
-        alert("Invalid coupon code. Try FRESH20 or SAVE50");
+      setLoadingCoupons(true);
+      setCouponError(null);
+      
+      console.log('🔍 Fetching coupons from API...');
+      
+      const response = await customerApi.getCustomerCoupons();
+      
+      console.log('📦 Raw API Response:', response);
+      
+      let coupons = [];
+      
+      if (response && response.coupons && Array.isArray(response.coupons)) {
+        coupons = response.coupons;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        coupons = response.data;
+      } else if (Array.isArray(response)) {
+        coupons = response;
       }
+      
+      console.log('📊 Extracted coupons:', coupons);
+      console.log('📊 Number of coupons:', coupons.length);
+      
+      const now = new Date();
+      
+      const activeCoupons = coupons.filter(coupon => {
+        const isActive = coupon.status === 'active' || coupon.is_active === true || !coupon.status;
+        const isNotExpired = coupon.end_date ? new Date(coupon.end_date) > now : true;
+        const minOrderMet = !coupon.minimum_order_amount || cartTotal >= coupon.minimum_order_amount;
+        return isActive && isNotExpired && minOrderMet;
+      });
+      
+      console.log('✅ Active coupons after filtering:', activeCoupons);
+      
+      activeCoupons.sort((a, b) => {
+        const getValue = (coupon) => {
+          if (coupon.coupon_type === 'percentage') return coupon.discount_value;
+          if (coupon.coupon_type === 'fixed') return coupon.discount_value;
+          return 0;
+        };
+        return getValue(b) - getValue(a);
+      });
+      
+      setAvailableCoupons(activeCoupons);
     } catch (error) {
-      alert("Failed to apply coupon");
+      console.error('❌ Error fetching coupons:', error);
+      setCouponError('Failed to load coupons. Please try again later.');
+      setAvailableCoupons([]);
     } finally {
-      setLoading(false);
+      setLoadingCoupons(false);
     }
+  };
+
+  const calculateDiscount = (coupon, subtotal) => {
+    if (coupon.coupon_type === 'percentage') {
+      let discount = (subtotal * coupon.discount_value) / 100;
+      if (coupon.maximum_discount_amount) {
+        discount = Math.min(discount, coupon.maximum_discount_amount);
+      }
+      return Math.round(discount);
+    } else if (coupon.coupon_type === 'fixed') {
+      return Math.min(coupon.discount_value, subtotal);
+    } else if (coupon.coupon_type === 'free_shipping') {
+      return 40;
+    }
+    return 0;
+  };
+
+  const getDiscountDisplay = (coupon) => {
+    switch(coupon.coupon_type) {
+      case "percentage": return `${coupon.discount_value}% OFF`;
+      case "fixed": return `₹${coupon.discount_value} OFF`;
+      case "free_shipping": return "FREE SHIPPING";
+      default: return `${coupon.discount_value}% OFF`;
+    }
+  };
+
+  const getCouponTypeIcon = (type) => {
+    switch(type) {
+      case "percentage": return <Percent className="w-4 h-4" />;
+      case "fixed": return <DollarSign className="w-4 h-4" />;
+      case "free_shipping": return <Truck className="w-4 h-4" />;
+      default: return <Tag className="w-4 h-4" />;
+    }
+  };
+
+  const applyCoupon = (coupon) => {
+    const discount = calculateDiscount(coupon, cartTotal);
+    setAppliedCouponData(coupon);
+    setCouponCode(coupon.code);
+    setCouponDiscount(discount);
+    setCouponApplied(true);
+    setShowCouponModal(false);
+    const message = `✅ Coupon "${coupon.code}" applied! You saved ₹${discount}`;
+    alert(message);
   };
 
   const handleRemoveCoupon = () => {
     setCouponApplied(false);
     setCouponDiscount(0);
     setCouponCode("");
+    setAppliedCouponData(null);
   };
 
   const handleUpdateQuantity = async (itemId, newQuantity, variantSku = null) => {
+    const cartItem = cart.find(item => item.id === itemId);
+    const finalVariantSku = variantSku || cartItem?.variant_sku || cartItem?.variantSku || "";
+    
+    console.log('Updating quantity:', { itemId, newQuantity, finalVariantSku });
+    
     if (newQuantity < 1) {
       if (window.confirm("Remove this item from cart?")) {
         setUpdatingItemId(itemId);
         try {
-          await removeFromCart(itemId, variantSku);
+          await removeFromCart(itemId, finalVariantSku);
+        } catch (error) {
+          console.error('Error removing item:', error);
+          alert('Failed to remove item. Please try again.');
         } finally {
           setUpdatingItemId(null);
         }
@@ -74,7 +172,10 @@ export function CartPage() {
     
     setUpdatingItemId(itemId);
     try {
-      await updateQuantity(itemId, newQuantity, variantSku);
+      await updateQuantity(itemId, newQuantity, finalVariantSku);
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      alert('Failed to update quantity. Please try again.');
     } finally {
       setUpdatingItemId(null);
     }
@@ -84,6 +185,59 @@ export function CartPage() {
     if (window.confirm("Are you sure you want to clear your entire cart? This action cannot be undone.")) {
       await clearCart();
     }
+  };
+
+  const getVariantDisplay = (item) => {
+    const variantSku = item.variant_sku || item.variantSku;
+    if (variantSku) {
+      const parts = variantSku.split('-');
+      const size = parts[parts.length - 2];
+      if (size && ['B', 'M', 'S', 'L', 'XL', 'XXL'].includes(size)) {
+        return `Size: ${size}`;
+      }
+      return `Variant: ${variantSku}`;
+    }
+    return null;
+  };
+
+  const subtotal = cartTotal;
+  const discount = couponApplied ? couponDiscount : 0;
+  const taxes = Math.round((subtotal - discount) * 0.05); // ✅ FIXED: Tax on discounted amount
+  const deliveryCharge = (subtotal - discount) >= 200 ? 0 : 40; // ✅ FIXED: Free shipping based on discounted amount
+  const total = (subtotal - discount) + taxes + deliveryCharge; // ✅ FIXED: Proper discounted total
+
+  // ✅ NEW: Function to handle checkout with coupon data
+  const handleProceedToCheckout = () => {
+    // Store coupon information in sessionStorage to pass to checkout
+    if (couponApplied && appliedCouponData) {
+      const couponData = {
+        code: appliedCouponData.code,
+        discount: couponDiscount,
+        discount_type: appliedCouponData.coupon_type,
+        discount_value: appliedCouponData.discount_value,
+        applied: true
+      };
+      sessionStorage.setItem('appliedCoupon', JSON.stringify(couponData));
+    } else {
+      sessionStorage.removeItem('appliedCoupon');
+    }
+    
+    // Store the discounted total for checkout
+    const orderSummary = {
+      subtotal: subtotal,
+      discount: discount,
+      discountedSubtotal: subtotal - discount,
+      taxes: taxes,
+      deliveryCharge: deliveryCharge,
+      total: total,
+      couponApplied: couponApplied,
+      couponCode: couponCode,
+      couponDiscount: couponDiscount
+    };
+    sessionStorage.setItem('orderSummary', JSON.stringify(orderSummary));
+    
+    // Navigate to checkout
+    navigate("/checkout");
   };
 
   const features = [
@@ -154,106 +308,114 @@ export function CartPage() {
 
             {/* Cart Items */}
             <AnimatePresence>
-              {cart.map((item, idx) => (
-                <motion.div
-                  key={`${item.id}-${item.variantSku || 'default'}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -100 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[#E8E1D5] hover:shadow-md transition-all group"
-                >
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    {/* Product Image */}
-                    <div 
-                      className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer bg-[#F5EBD9]/30 mx-auto sm:mx-0"
-                      onClick={() => navigate(`/product/${item.slug || item.id}`)}
-                    >
-                      <img 
-                        src={item.image || "https://placehold.co/100x100/3E7C47/white?text=Product"} 
-                        alt={item.name} 
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.target.src = "https://placehold.co/100x100/3E7C47/white?text=Product"; }}
-                      />
-                    </div>
-
-                    {/* Product Info */}
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                        <div>
-                          <h3 
-                            className="font-semibold text-gray-800 text-base cursor-pointer hover:text-[#3E7C47] transition-colors"
-                            onClick={() => navigate(`/product/${item.slug || item.id}`)}
-                          >
-                            {item.name}
-                          </h3>
-                          <p className="text-xs text-gray-400 mt-0.5">{item.unit || "Piece"}</p>
-                          {item.discount > 0 && (
-                            <span className="inline-block mt-1 text-xs text-[#B6463A] bg-red-50 px-2 py-0.5 rounded-full">
-                              {item.discount}% OFF
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-right sm:hidden">
-                          <p className="text-lg font-bold text-[#3E7C47]">₹{item.price * item.quantity}</p>
-                        </div>
+              {cart.map((item, idx) => {
+                const variantDisplay = getVariantDisplay(item);
+                return (
+                  <motion.div
+                    key={`${item.id}-${item.variant_sku || item.variantSku || 'default'}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[#E8E1D5] hover:shadow-md transition-all group"
+                  >
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* Product Image */}
+                      <div 
+                        className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer bg-[#F5EBD9]/30 mx-auto sm:mx-0"
+                        onClick={() => navigate(`/product/${item.slug || item.id}`)}
+                      >
+                        <img 
+                          src={item.image || "https://placehold.co/100x100/3E7C47/white?text=Product"} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.src = "https://placehold.co/100x100/3E7C47/white?text=Product"; }}
+                        />
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
-                        <div className="hidden sm:block">
-                          <p className="text-sm text-gray-500">Unit Price</p>
-                          <p className="font-semibold text-gray-800">₹{item.price}</p>
-                          {item.originalPrice && (
-                            <p className="text-xs text-gray-400 line-through">₹{item.originalPrice}</p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <p className="text-sm text-gray-500 hidden sm:block">Qty:</p>
-                          <div className="flex items-center bg-[#F5EBD9]/30 rounded-full overflow-hidden">
-                            <button
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1, item.variantSku)}
-                              disabled={updatingItemId === item.id}
-                              className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
+                      {/* Product Info */}
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div>
+                            <h3 
+                              className="font-semibold text-gray-800 text-base cursor-pointer hover:text-[#3E7C47] transition-colors"
+                              onClick={() => navigate(`/product/${item.slug || item.id}`)}
                             >
-                              {updatingItemId === item.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Minus className="w-4 h-4 text-gray-600" />
-                              )}
-                            </button>
-                            <span className="w-10 text-center text-sm font-semibold text-gray-800">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1, item.variantSku)}
-                              disabled={updatingItemId === item.id}
-                              className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
-                            >
-                              <Plus className="w-4 h-4 text-gray-600" />
-                            </button>
+                              {item.name}
+                            </h3>
+                            <p className="text-xs text-gray-400 mt-0.5">{item.unit || "Piece"}</p>
+                            {variantDisplay && (
+                              <p className="text-xs text-[#3E7C47] mt-0.5 font-medium">
+                                {variantDisplay}
+                              </p>
+                            )}
+                            {item.discount > 0 && (
+                              <span className="inline-block mt-1 text-xs text-[#B6463A] bg-red-50 px-2 py-0.5 rounded-full">
+                                {item.discount}% OFF
+                              </span>
+                            )}
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500 hidden sm:block">Subtotal</p>
+                          <div className="text-right sm:hidden">
                             <p className="text-lg font-bold text-[#3E7C47]">₹{item.price * item.quantity}</p>
                           </div>
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, 0, item.variantSku)}
-                            disabled={updatingItemId === item.id}
-                            className="p-2 text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
-                            title="Remove item"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
+                          <div className="hidden sm:block">
+                            <p className="text-sm text-gray-500">Unit Price</p>
+                            <p className="font-semibold text-gray-800">₹{item.price}</p>
+                            {item.originalPrice && (
+                              <p className="text-xs text-gray-400 line-through">₹{item.originalPrice}</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <p className="text-sm text-gray-500 hidden sm:block">Qty:</p>
+                            <div className="flex items-center bg-[#F5EBD9]/30 rounded-full overflow-hidden">
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1, item.variant_sku || item.variantSku)}
+                                disabled={updatingItemId === item.id}
+                                className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
+                              >
+                                {updatingItemId === item.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Minus className="w-4 h-4 text-gray-600" />
+                                )}
+                              </button>
+                              <span className="w-10 text-center text-sm font-semibold text-gray-800">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1, item.variant_sku || item.variantSku)}
+                                disabled={updatingItemId === item.id}
+                                className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
+                              >
+                                <Plus className="w-4 h-4 text-gray-600" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500 hidden sm:block">Subtotal</p>
+                              <p className="text-lg font-bold text-[#3E7C47]">₹{item.price * item.quantity}</p>
+                            </div>
+                            <button
+                              onClick={() => handleUpdateQuantity(item.id, 0, item.variant_sku || item.variantSku)}
+                              disabled={updatingItemId === item.id}
+                              className="p-2 text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
 
             {/* Cart Actions */}
@@ -284,32 +446,28 @@ export function CartPage() {
               </h3>
               {couponApplied ? (
                 <div className="flex items-center justify-between bg-[#3E7C47]/10 border border-[#3E7C47]/20 rounded-xl px-3 py-2">
-                  <span className="text-sm text-[#3E7C47] font-medium">
-                    ✅ "{couponCode.toUpperCase()}" applied!
-                  </span>
-                  <button onClick={handleRemoveCoupon} className="text-[#B6463A] text-xs hover:text-red-700">
+                  <div className="flex items-center gap-2">
+                    <Ticket className="w-4 h-4 text-[#3E7C47]" />
+                    <span className="text-sm text-[#3E7C47] font-medium">
+                      {couponCode} applied! Saved ₹{couponDiscount}
+                    </span>
+                  </div>
+                  <button onClick={handleRemoveCoupon} className="text-red-500 text-xs hover:text-red-700">
                     Remove
                   </button>
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter coupon code"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-[#F5EBD9]/30 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#3E7C47] border border-[#E8E1D5]"
-                  />
-                  <button
-                    onClick={handleApplyCoupon}
-                    disabled={loading}
-                    className="px-5 py-2 bg-[#3E7C47] text-white rounded-full text-sm font-medium hover:bg-[#2E5C37] transition-colors disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    fetchAvailableCoupons();
+                    setShowCouponModal(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-[#3E7C47] hover:text-[#3E7C47] transition-all"
+                >
+                  <Gift className="w-4 h-4" />
+                  Choose a Coupon
+                </button>
               )}
-              <p className="text-xs text-gray-400 mt-2">Try: FRESH20 (20% off) or SAVE50 (₹50 off)</p>
             </div>
 
             {/* Order Summary Card */}
@@ -341,10 +499,10 @@ export function CartPage() {
                   <span>₹{taxes.toLocaleString()}</span>
                 </div>
                 
-                {deliveryCharge > 0 && subtotal < 200 && (
+                {deliveryCharge > 0 && (subtotal - discount) < 200 && (
                   <div className="bg-[#F5EBD9] rounded-xl p-2 text-center">
                     <p className="text-xs text-[#B6463A]">
-                      Add ₹{200 - subtotal} more for free delivery
+                      Add ₹{200 - (subtotal - discount)} more for free delivery
                     </p>
                   </div>
                 )}
@@ -367,7 +525,7 @@ export function CartPage() {
               )}
 
               <button
-                onClick={() => navigate("/checkout")}
+                onClick={handleProceedToCheckout}
                 className="w-full mt-6 flex items-center justify-center gap-2 py-3.5 bg-[#3E7C47] text-white rounded-full font-semibold hover:bg-[#2E5C37] transition-all shadow-md hover:shadow-lg"
               >
                 Proceed to Checkout <ArrowRight className="w-4 h-4" />
@@ -421,6 +579,117 @@ export function CartPage() {
           </div>
         </div>
       </div>
+
+      {/* Coupon Modal */}
+      <AnimatePresence>
+        {showCouponModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-[#3E7C47]" />
+                  Available Coupons
+                </h3>
+                <button
+                  onClick={() => setShowCouponModal(false)}
+                  className="p-1 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 max-h-96 overflow-y-auto">
+                {loadingCoupons ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#3E7C47] mx-auto" />
+                    <p className="text-gray-500 mt-2">Loading coupons...</p>
+                  </div>
+                ) : couponError ? (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
+                    <p className="text-gray-500">{couponError}</p>
+                    <button
+                      onClick={fetchAvailableCoupons}
+                      className="mt-3 text-sm text-[#3E7C47] hover:underline"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : availableCoupons.length > 0 ? (
+                  <div className="space-y-3">
+                    {availableCoupons.map((coupon) => {
+                      const discountAmount = calculateDiscount(coupon, cartTotal);
+                      const isExpiringSoon = coupon.end_date && new Date(coupon.end_date) - new Date() < 3 * 24 * 60 * 60 * 1000;
+                      
+                      return (
+                        <div
+                          key={coupon.id || coupon._id}
+                          className="p-4 border border-gray-200 rounded-xl hover:border-[#3E7C47] transition-all cursor-pointer group"
+                          onClick={() => applyCoupon(coupon)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-[#3E7C47]/10 rounded-full flex items-center justify-center text-[#3E7C47]">
+                                {getCouponTypeIcon(coupon.coupon_type)}
+                              </div>
+                              <div>
+                                <span className="font-mono font-bold text-[#3E7C47] text-sm">{coupon.code}</span>
+                                {coupon.coupon_type === 'percentage' && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                    {coupon.discount_value}% OFF
+                                  </span>
+                                )}
+                                {coupon.coupon_type === 'fixed' && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                    ₹{coupon.discount_value} OFF
+                                  </span>
+                                )}
+                                {coupon.coupon_type === 'free_shipping' && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                    Free Shipping
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-[#3E7C47] group-hover:scale-110 transition-transform">
+                              Save ₹{discountAmount}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{coupon.description || coupon.name}</p>
+                          <div className="flex items-center gap-4 text-xs text-gray-400">
+                            {coupon.minimum_order_amount > 0 && (
+                              <span>Min. order: ₹{coupon.minimum_order_amount}</span>
+                            )}
+                            {coupon.is_first_purchase_only && (
+                              <span className="text-amber-600">First purchase only</span>
+                            )}
+                            {coupon.end_date && (
+                              <span className={isExpiringSoon ? "text-orange-500" : ""}>
+                                Expires: {new Date(coupon.end_date).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">No coupons available</p>
+                    <p className="text-xs text-gray-400 mt-1">Check back later for offers!</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>

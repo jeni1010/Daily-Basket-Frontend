@@ -55,32 +55,43 @@ export function AdminCustomers() {
         params.status = filterStatus;
       }
       
-      const data = await customersApi.getAll(params);
+      const response = await customersApi.getAll(params);
       
-      setCustomers(data);
+      // ✅ FIXED: Extract customers array from response object
+      let customersList = [];
+      if (response && response.customers && Array.isArray(response.customers)) {
+        customersList = response.customers;
+      } else if (response && Array.isArray(response)) {
+        customersList = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        customersList = response.data;
+      }
       
-      const hasOrders = data.some(c => (c.total_orders || 0) > 0);
-      if (data.length > 0 && !hasOrders) {
+      setCustomers(customersList);
+      
+      const hasOrders = customersList.some(c => (c.total_orders || 0) > 0);
+      if (customersList.length > 0 && !hasOrders) {
         setOrdersError(true);
       }
       
-      const active = data.filter(c => c.status === 'active').length;
-      const inactive = data.filter(c => c.status === 'inactive').length;
-      const totalOrders = data.reduce((sum, c) => sum + (c.total_orders || 0), 0);
+      const active = customersList.filter(c => c.status === 'active').length;
+      const inactive = customersList.filter(c => c.status === 'inactive').length;
+      const totalOrders = customersList.reduce((sum, c) => sum + (c.total_orders || 0), 0);
       
-      const totalRevenue = data.reduce((sum, c) => {
+      const totalRevenue = customersList.reduce((sum, c) => {
         const spent = c.total_spent || 0;
         return sum + (isNaN(spent) ? 0 : spent);
       }, 0);
       
       setStats({
-        total: data.length,
+        total: customersList.length,
         active: active,
         inactive: inactive,
         totalOrders: totalOrders,
         totalRevenue: totalRevenue
       });
     } catch (error) {
+      console.error('Fetch customers error:', error);
       setError(error.message || "Failed to fetch customers");
       setCustomers([]);
     } finally {
@@ -111,6 +122,7 @@ export function AdminCustomers() {
       XLSX.writeFile(wb, `customers_${new Date().toISOString().split('T')[0]}.xlsx`);
       alert("✅ Excel report exported successfully!");
     } catch (error) {
+      console.error('Export error:', error);
       alert("Failed to export to Excel");
     } finally {
       setExporting(false);
@@ -261,6 +273,7 @@ export function AdminCustomers() {
       alert("✅ PDF report exported successfully!");
       
     } catch (error) {
+      console.error('PDF export error:', error);
       alert("Failed to export to PDF. Please try again.");
     } finally {
       setExporting(false);
@@ -366,6 +379,7 @@ export function AdminCustomers() {
         </div>
       )}
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
@@ -412,6 +426,7 @@ export function AdminCustomers() {
         </div>
       </div>
 
+      {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
@@ -436,6 +451,7 @@ export function AdminCustomers() {
         </div>
       </div>
 
+      {/* Customers Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -516,13 +532,13 @@ export function AdminCustomers() {
                 );
               })}
               {customers.length === 0 && !error && (
-                <td>
+                <tr>
                   <td colSpan={7} className="px-5 py-12 text-center">
                     <Users className="w-12 h-12 text-[#94A3B8] mx-auto mb-3" />
                     <p className="text-[#64748B]">No customers found</p>
                     <p className="text-xs text-[#94A3B8] mt-1">Try adjusting your search or filter</p>
                   </td>
-                </td>
+                </tr>
               )}
             </tbody>
           </table>

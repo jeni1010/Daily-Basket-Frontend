@@ -14,14 +14,16 @@ import Footer from "../../components/Footer";
 export function OrderSuccessPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orderId } = useParams();
+  const { orderId: paramOrderId } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   
-  // Get payment info from location state (for Razorpay)
-  const paymentInfo = location.state || {};
+  // Get orderId from URL params or location state
+  const orderId = paramOrderId || location.state?.orderId;
+  const paymentMethodFromUrl = new URLSearchParams(window.location.search).get('method');
+  const paymentMethod = paymentMethodFromUrl || location.state?.paymentMethod || "Razorpay";
 
   useEffect(() => {
     if (orderId) {
@@ -29,6 +31,9 @@ export function OrderSuccessPage() {
     } else {
       setLoading(false);
       setError("No order ID found");
+      setTimeout(() => {
+        navigate("/orders");
+      }, 3000);
     }
   }, [orderId]);
 
@@ -37,7 +42,11 @@ export function OrderSuccessPage() {
       setLoading(true);
       setError(null);
       
+      console.log("Fetching order details for ID:", orderId);
+      
       const response = await customerApi.orders.getDetails(orderId);
+      
+      console.log("Order details response:", response);
       
       let orderData = null;
       
@@ -199,8 +208,6 @@ export function OrderSuccessPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
-    alert("Invoice downloaded as HTML file");
   };
 
   const currentDate = new Date();
@@ -286,9 +293,6 @@ export function OrderSuccessPage() {
 
   const orderNumber = order?.order_number || order?.order_id || order?.id || orderId || "N/A";
   const orderStatus = order?.order_status || order?.status || "pending";
-  const paymentMethod = order?.payment_method || order?.paymentMethod || 
-                        (paymentInfo.paymentMethod === "razorpay" ? "Razorpay" : "COD");
-  const paymentId = paymentInfo.paymentId || order?.payment_id || "";
   
   const subtotal = calculateSubtotal();
   const deliveryCharge = getDeliveryCharge();
@@ -328,8 +332,8 @@ export function OrderSuccessPage() {
                   <CheckCircle className="w-5 h-5" />
                   <h1 className="text-base font-semibold">Order Successful</h1>
                 </div>
-                {paymentMethod === "Razorpay" && paymentId && (
-                  <p className="text-xs text-gray-500 mt-1">Payment ID: {paymentId.slice(-8)}</p>
+                {paymentMethod === "Razorpay" && (
+                  <p className="text-xs text-gray-500 mt-1">Payment successful via Razorpay</p>
                 )}
               </div>
             </div>

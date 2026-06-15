@@ -12,6 +12,34 @@ export const useAuth = () => {
   return context;
 };
 
+// Helper function to decode JWT token
+const decodeToken = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(atob(base64));
+    return decoded;
+  } catch (error) {
+    console.error('Failed to decode token:', error);
+    return null;
+  }
+};
+
+// Helper function to extract user from token
+const getUserFromToken = (token) => {
+  const decoded = decodeToken(token);
+  if (decoded) {
+    return {
+      id: decoded.id || decoded.userId || decoded.sub,
+      email: decoded.email,
+      name: decoded.name || decoded.full_name || decoded.username,
+      role: decoded.role || decoded.user_role,
+      phone: decoded.phone || decoded.mobile,
+    };
+  }
+  return null;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,18 +52,46 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      if (token) {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
         const userData = await authService.getMe();
         const userInfo = userData.user || userData;
         
-        // Log role for debugging
         console.log('Auth check - User role:', userInfo?.role);
         
         setUser(userInfo);
         localStorage.setItem('user', JSON.stringify(userInfo));
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        
+        // If CORS error or network error, try to decode token
+        if (err.message === 'Network Error' || err.code === 'ERR_NETWORK' || err.message?.includes('CORS')) {
+          console.log('Network/CORS error detected, falling back to token decoding');
+          const userFromToken = getUserFromToken(token);
+          
+          if (userFromToken) {
+            console.log('User extracted from token:', userFromToken);
+            setUser(userFromToken);
+            localStorage.setItem('user', JSON.stringify(userFromToken));
+          } else {
+            // Token is invalid or expired
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
+        } else {
+          // Other errors - clear auth data
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
       }
     } catch (err) {
-      console.error('Auth check failed:', err);
+      console.error('Unexpected auth check error:', err);
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       setUser(null);
@@ -113,7 +169,6 @@ export const AuthProvider = ({ children }) => {
           const userData = await authService.getMe();
           const userInfo = userData.user || userData;
           
-          // Log role for debugging
           console.log('Signin - User data:', userInfo);
           console.log('Signin - User role:', userInfo?.role);
           
@@ -122,8 +177,16 @@ export const AuthProvider = ({ children }) => {
           response.user = userInfo;
           response.role = userInfo?.role;
         } catch (userErr) {
-          console.error('Failed to fetch user data:', userErr);
-          if (response.user) {
+          console.error('Failed to fetch user data, falling back to token decode:', userErr);
+          
+          // Fallback to token decoding
+          const userFromToken = getUserFromToken(token);
+          if (userFromToken) {
+            setUser(userFromToken);
+            localStorage.setItem('user', JSON.stringify(userFromToken));
+            response.user = userFromToken;
+            response.role = userFromToken?.role;
+          } else if (response.user) {
             setUser(response.user);
             localStorage.setItem('user', JSON.stringify(response.user));
             response.role = response.user?.role;
@@ -139,6 +202,8 @@ export const AuthProvider = ({ children }) => {
         errorMessage = err.userMessage;
       } else if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail;
+      } else if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error. Please check your connection.';
       }
       
       setError(errorMessage);
@@ -224,8 +289,14 @@ export const AuthProvider = ({ children }) => {
           setUser(userInfo);
           localStorage.setItem('user', JSON.stringify(userInfo));
         } catch (userErr) {
-          console.error('Failed to fetch user data after Google login:', userErr);
-          if (response.user) {
+          console.error('Failed to fetch user data after Google login, falling back to token decode:', userErr);
+          
+          // Fallback to token decoding
+          const userFromToken = getUserFromToken(authToken);
+          if (userFromToken) {
+            setUser(userFromToken);
+            localStorage.setItem('user', JSON.stringify(userFromToken));
+          } else if (response.user) {
             setUser(response.user);
             localStorage.setItem('user', JSON.stringify(response.user));
           }
@@ -253,6 +324,30 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Helper method to refresh user data
+  const refreshUser = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    
+    try {
+      const userData = await authService.getMe();
+      const userInfo = userData.user || userData;
+      setUser(userInfo);
+      localStorage.setItem('user', JSON.stringify(userInfo));
+    } catch (err) {
+      console.error('Failed to refresh user:', err);
+      // Fallback to token decoding
+      const userFromToken = getUserFromToken(token);
+      if (userFromToken) {
+        setUser(userFromToken);
+        localStorage.setItem('user', JSON.stringify(userFromToken));
+      }
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -265,6 +360,7 @@ export const AuthProvider = ({ children }) => {
     updatePassword,
     googleLogin,
     logout,
+    refreshUser,
     setError,
   };
 

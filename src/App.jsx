@@ -29,19 +29,22 @@ import { OrderSuccessPage } from './pages/user/OrderSuccessPage';
 import ProfilePage from './pages/user/ProfilePage';
 import { WishlistPage } from './pages/user/WishlistPage';
 
+// Loading component
+const LoadingSpinner = () => (
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3E7C47] mx-auto mb-4"></div>
+      <p className="text-gray-600">Loading...</p>
+    </div>
+  </div>
+);
+
 // Protected Route wrapper for user routes
 const UserProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3A7D44] mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
   
   if (!user) {
@@ -56,14 +59,7 @@ const AdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3A7D44] mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
   
   if (!user) {
@@ -76,17 +72,12 @@ const AdminProtectedRoute = ({ children }) => {
                   user?.data?.role ||
                   user?.user?.user?.role;
   
-  console.log('AdminProtectedRoute - User role:', userRole);
-  console.log('User object:', user);
-  
   const isAdmin = userRole === 'admin' || 
                   userRole === 'ADMIN' || 
                   userRole === 'super_admin' ||
                   userRole === 'Super Admin' ||
                   userRole === 'administrator' ||
                   userRole === 'Administrator';
-  
-  console.log('Is admin:', isAdmin);
   
   if (!isAdmin) {
     return <Navigate to="/" replace />;
@@ -130,6 +121,54 @@ function App() {
             {/* How It Works Route */}
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             
+            {/* Cart Route (Protected) */}
+            <Route 
+              path="/cart" 
+              element={
+                <UserProtectedRoute>
+                  <CartPage />
+                </UserProtectedRoute>
+              } 
+            />
+            
+            {/* Checkout Route (Protected) */}
+            <Route 
+              path="/checkout" 
+              element={
+                <UserProtectedRoute>
+                  <CheckoutPage />
+                </UserProtectedRoute>
+              } 
+            />
+            
+            {/* Order Success Route (Protected) */}
+            <Route 
+              path="/order-success/:orderId" 
+              element={
+                <UserProtectedRoute>
+                  <OrderSuccessPage />
+                </UserProtectedRoute>
+              } 
+            />
+            
+            {/* Orders Route (Protected) */}
+            <Route 
+              path="/orders" 
+              element={
+                <UserProtectedRoute>
+                  <OrdersPage />
+                </UserProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders/:orderId" 
+              element={
+                <UserProtectedRoute>
+                  <OrderSuccessPage />
+                </UserProtectedRoute>
+              } 
+            />
+            
             {/* User Dashboard Route */}
             <Route 
               path="/dashboard" 
@@ -140,37 +179,25 @@ function App() {
               } 
             />
             
-            {/* Protected User Routes */}
-            <Route path="/cart" element={
-              <UserProtectedRoute>
-                <CartPage />
-              </UserProtectedRoute>
-            } />
-            <Route path="/checkout" element={
-              <UserProtectedRoute>
-                <CheckoutPage />
-              </UserProtectedRoute>
-            } />
-            <Route path="/orders" element={
-              <UserProtectedRoute>
-                <OrdersPage />
-              </UserProtectedRoute>
-            } />
-            <Route path="/orders/:orderId" element={
-              <UserProtectedRoute>
-                <OrderSuccessPage />
-              </UserProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <UserProtectedRoute>
-                <ProfilePage />
-              </UserProtectedRoute>
-            } />
-            <Route path="/wishlist" element={
-              <UserProtectedRoute>
-                <WishlistPage />
-              </UserProtectedRoute>
-            } />
+            {/* Profile Route */}
+            <Route 
+              path="/profile" 
+              element={
+                <UserProtectedRoute>
+                  <ProfilePage />
+                </UserProtectedRoute>
+              } 
+            />
+            
+            {/* Wishlist Route */}
+            <Route 
+              path="/wishlist" 
+              element={
+                <UserProtectedRoute>
+                  <WishlistPage />
+                </UserProtectedRoute>
+              } 
+            />
             
             {/* Admin Routes with Layout */}
             <Route 

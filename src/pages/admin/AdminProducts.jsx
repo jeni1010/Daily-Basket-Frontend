@@ -28,18 +28,61 @@ const statusOptions = [
   { value: "out_of_stock", label: "Out of Stock" },
 ];
 
-// Auto-generate SKU from product name
+// Auto-generate SKU from product name with timestamp for uniqueness
 const generateSKU = (productName) => {
-  if (!productName) return "";
+  const timestamp = Date.now();
+  if (!productName) return `SKU-${timestamp}`;
   const prefix = productName.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '');
-  const randomNum = Math.floor(Math.random() * 9999);
-  return `${prefix}${randomNum}`;
+  const cleanPrefix = prefix || 'PRD';
+  return `${cleanPrefix}-${timestamp}`;
 };
 
-// Auto-generate slug from product name
+// Auto-generate slug from product name with timestamp for uniqueness
 const generateSlug = (productName) => {
-  if (!productName) return "";
-  return productName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const timestamp = Date.now();
+  if (!productName) return `product-${timestamp}`;
+  const baseSlug = productName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${baseSlug}-${timestamp}`;
+};
+
+// Generate combinations for variants using cartesian product
+const generateCombinations = (attributes, baseSku, basePrice) => {
+  if (attributes.length === 0) return [];
+  
+  const cartesian = (arrays) => {
+    if (arrays.length === 0) return [[]];
+    const result = [];
+    const rest = cartesian(arrays.slice(1));
+    for (const item of arrays[0]) {
+      for (const combination of rest) {
+        result.push([item, ...combination]);
+      }
+    }
+    return result;
+  };
+  
+  const attributeArrays = attributes.map(attr => 
+    attr.values.map(value => ({ name: attr.name, value }))
+  );
+  
+  const combinations = cartesian(attributeArrays);
+  
+  return combinations.map((combo, index) => ({
+    sku: `${baseSku || 'VAR'}-${combo.map(a => a.value.toUpperCase().substring(0, 3)).join('-')}-${index + 1}`,
+    attributes: combo,
+    price: basePrice || null,
+    compare_price: null,
+    cost_per_unit: null,
+    stock_quantity: 0,
+    low_stock_threshold: 5,
+    images: [],
+    weight_in_grams: null,
+    barcode: "",
+    status: "active",
+  }));
 };
 
 export function AdminProducts() {
@@ -57,7 +100,13 @@ export function AdminProducts() {
   const [viewMode, setViewMode] = useState("grid");
   const [tagInput, setTagInput] = useState("");
   
-  // Form state - matches API schema exactly
+  // Variant builder state
+  const [variantAttributes, setVariantAttributes] = useState([]);
+  const [newAttributeName, setNewAttributeName] = useState("");
+  const [newAttributeValues, setNewAttributeValues] = useState("");
+  const [generatedVariants, setGeneratedVariants] = useState([]);
+  
+  // Form state
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -90,111 +139,70 @@ export function AdminProducts() {
     variant_combinations: [],
   });
 
-  // Variant builder
-  const [variantAttributes, setVariantAttributes] = useState([]);
-  const [newAttributeName, setNewAttributeName] = useState("");
-  const [newAttributeValues, setNewAttributeValues] = useState("");
-  const [generatedVariants, setGeneratedVariants] = useState([]);
-
-  // Auto-generate fields when product name changes
+  // Auto-generate fields when product name changes (for new products only)
   useEffect(() => {
-    if (!editingId && form.name) {
+    if (!editingId && form.name && (!form.sku || !form.slug)) {
+      const timestamp = Date.now();
       if (!form.sku) {
-        setForm(prev => ({ ...prev, sku: generateSKU(form.name) }));
+        const prefix = form.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '') || 'PRD';
+        setForm(prev => ({ ...prev, sku: `${prefix}-${timestamp}` }));
       }
       if (!form.slug) {
-        setForm(prev => ({ ...prev, slug: generateSlug(form.name) }));
+        const baseSlug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        setForm(prev => ({ ...prev, slug: `${baseSlug}-${timestamp}` }));
       }
     }
   }, [form.name, editingId]);
-
-  const refreshSKU = () => {
-    if (form.name) {
-      setForm(prev => ({ ...prev, sku: generateSKU(form.name) }));
-    }
-  };
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
   }, []);
 
-  const generateCombinations = (attributes) => {
-    if (attributes.length === 0) return [];
-    const cartesian = (arrays) => {
-      if (arrays.length === 0) return [[]];
-      const result = [];
-      const rest = cartesian(arrays.slice(1));
-      for (const item of arrays[0]) {
-        for (const combination of rest) {
-          result.push([item, ...combination]);
-        }
-      }
-      return result;
-    };
-    const attributeArrays = attributes.map(attr => 
-      attr.values.map(value => ({ name: attr.name, value }))
-    );
-    const combinations = cartesian(attributeArrays);
-    return combinations.map(combo => ({
-      sku: `${form.sku || form.name?.substring(0, 3) || 'VAR'}-${combo.map(a => a.value.toUpperCase().substring(0, 3)).join('-')}`,
-      attributes: combo,
-      price: form.price || null,
-      compare_price: null,
-      cost_per_unit: null,
-      stock_quantity: 0,
-      low_stock_threshold: 5,
-      images: [],
-      weight_in_grams: null,
-      barcode: "",
-      status: "active",
-    }));
-  };
-
-  const addAttribute = () => {
-    if (newAttributeName.trim() && newAttributeValues.trim()) {
-      const values = newAttributeValues.split(",").map(v => v.trim());
-      const newAttributes = [...variantAttributes, { name: newAttributeName.trim(), values }];
-      setVariantAttributes(newAttributes);
-      setGeneratedVariants(generateCombinations(newAttributes));
-      setNewAttributeName("");
-      setNewAttributeValues("");
-      // Also update form variant_attributes and variant_combinations
-      setForm(prev => ({
-        ...prev,
-        variant_attributes: newAttributes.map(a => a.name),
-        variant_combinations: newAttributes,
+  // ✅ FIXED: Update variants when attributes change - proper format for variant_combinations
+  useEffect(() => {
+    if (form.has_variants && variantAttributes.length > 0) {
+      const newVariants = generateCombinations(variantAttributes, form.sku, form.price);
+      setGeneratedVariants(newVariants);
+      
+      // ✅ Format variant_combinations correctly for API
+      const formattedCombinations = variantAttributes.map(attr => ({
+        attribute_name: attr.name,
+        values: attr.values
       }));
+      
+      setForm(prev => ({ 
+        ...prev, 
+        variants: newVariants, 
+        variant_attributes: variantAttributes.map(a => a.name),
+        variant_combinations: formattedCombinations
+      }));
+    } else if (!form.has_variants || variantAttributes.length === 0) {
+      setGeneratedVariants([]);
+      if (!form.has_variants) {
+        setForm(prev => ({ ...prev, variants: [], variant_attributes: [], variant_combinations: [] }));
+      }
+    }
+  }, [variantAttributes, form.has_variants, form.sku, form.price]);
+
+  const refreshSKU = () => {
+    const timestamp = Date.now();
+    if (form.name) {
+      const prefix = form.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '') || 'PRD';
+      setForm(prev => ({ ...prev, sku: `${prefix}-${timestamp}` }));
+    } else {
+      setForm(prev => ({ ...prev, sku: `SKU-${timestamp}` }));
     }
   };
 
-  const removeAttribute = (index) => {
-    const newAttributes = variantAttributes.filter((_, i) => i !== index);
-    setVariantAttributes(newAttributes);
-    setGeneratedVariants(generateCombinations(newAttributes));
-    setForm(prev => ({
-      ...prev,
-      variant_attributes: newAttributes.map(a => a.name),
-      variant_combinations: newAttributes,
-    }));
-  };
-
-  const updateVariant = (index, field, value) => {
-    const newVariants = [...generatedVariants];
-    newVariants[index][field] = value;
-    setGeneratedVariants(newVariants);
-    setForm(prev => ({ ...prev, variants: newVariants }));
-  };
-
-  const addTag = () => {
-    if (tagInput.trim() && !form.tags.includes(tagInput.trim())) {
-      setForm({ ...form, tags: [...form.tags, tagInput.trim()] });
-      setTagInput("");
+  const refreshSlug = () => {
+    const timestamp = Date.now();
+    if (form.name) {
+      const baseSlug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      setForm(prev => ({ ...prev, slug: `${baseSlug}-${timestamp}` }));
+    } else {
+      setForm(prev => ({ ...prev, slug: `product-${timestamp}` }));
     }
-  };
-
-  const removeTag = (tag) => {
-    setForm({ ...form, tags: form.tags.filter(t => t !== tag) });
   };
 
   const fetchProducts = async () => {
@@ -213,7 +221,44 @@ export function AdminProducts() {
     try {
       const data = await categoriesApi.getAll("active");
       setCategories(data);
-    } catch (error) {}
+    } catch (error) {
+      console.error("Failed to fetch categories", error);
+    }
+  };
+
+  const addAttribute = () => {
+    if (newAttributeName.trim() && newAttributeValues.trim()) {
+      const values = newAttributeValues.split(",").map(v => v.trim());
+      const newAttributes = [...variantAttributes, { name: newAttributeName.trim(), values }];
+      setVariantAttributes(newAttributes);
+      setNewAttributeName("");
+      setNewAttributeValues("");
+    } else {
+      alert("Please enter both attribute name and values");
+    }
+  };
+
+  const removeAttribute = (index) => {
+    const newAttributes = variantAttributes.filter((_, i) => i !== index);
+    setVariantAttributes(newAttributes);
+  };
+
+  const updateVariantField = (index, field, value) => {
+    const newVariants = [...generatedVariants];
+    newVariants[index][field] = value;
+    setGeneratedVariants(newVariants);
+    setForm(prev => ({ ...prev, variants: newVariants }));
+  };
+
+  const addTag = () => {
+    if (tagInput.trim() && !form.tags.includes(tagInput.trim())) {
+      setForm({ ...form, tags: [...form.tags, tagInput.trim()] });
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (tag) => {
+    setForm({ ...form, tags: form.tags.filter(t => t !== tag) });
   };
 
   const filteredProducts = products.filter((p) => {
@@ -262,30 +307,35 @@ export function AdminProducts() {
       variants: product.variants || [],
       variant_combinations: product.variant_combinations || [],
     });
-    if (product.variants?.length > 0) {
-      setGeneratedVariants(product.variants);
-      if (product.variants[0]?.attributes) {
-        const attrs = {};
-        product.variants.forEach(v => {
-          v.attributes?.forEach(attr => {
-            if (!attrs[attr.name]) attrs[attr.name] = new Set();
-            attrs[attr.name].add(attr.value);
-          });
+    
+    // Restore variant attributes from variants if they exist
+    if (product.variants && product.variants.length > 0 && product.variants[0]?.attributes) {
+      const attrs = {};
+      product.variants.forEach(v => {
+        v.attributes?.forEach(attr => {
+          if (!attrs[attr.name]) attrs[attr.name] = new Set();
+          attrs[attr.name].add(attr.value);
         });
-        setVariantAttributes(Object.entries(attrs).map(([name, values]) => ({ name, values: Array.from(values) })));
-      }
+      });
+      const restoredAttributes = Object.entries(attrs).map(([name, values]) => ({ name, values: Array.from(values) }));
+      setVariantAttributes(restoredAttributes);
+      setGeneratedVariants(product.variants);
+    } else {
+      setVariantAttributes([]);
+      setGeneratedVariants([]);
     }
+    
     setShowModal(true);
   };
 
   const handleDelete = async (product) => {
-    if (confirm(`Delete "${product.name}"?`)) {
+    if (confirm(`Delete "${product.name}"? This action cannot be undone.`)) {
       try {
         await productsApi.delete(product._id);
         await fetchProducts();
         alert("Product deleted successfully!");
       } catch (error) {
-        alert("Failed to delete");
+        alert("Failed to delete product");
       }
     }
   };
@@ -320,13 +370,17 @@ export function AdminProducts() {
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
     setUploading(true);
     try {
       const base64 = await compressImage(file);
       setForm({ ...form, main_image: base64 });
       alert("Image uploaded successfully!");
     } catch (error) {
-      alert("Failed to upload");
+      alert("Failed to upload image");
     } finally {
       setUploading(false);
     }
@@ -358,7 +412,7 @@ export function AdminProducts() {
     e.preventDefault();
     
     // Validation
-    if (!form.name.trim()) {
+    if (!form.name || !form.name.trim()) {
       alert("Product name is required");
       return;
     }
@@ -366,45 +420,85 @@ export function AdminProducts() {
       alert("Please select a category");
       return;
     }
-    if (!form.price) {
-      alert("Please enter a price");
+    if (!form.price || form.price <= 0) {
+      alert("Please enter a valid price");
       return;
     }
 
-    // Prepare data matching API schema
+    // Ensure category_id is a string, not an object
+    const categoryId = typeof form.category_id === 'object' 
+      ? (form.category_id._id || form.category_id.id) 
+      : form.category_id;
+
+    // ✅ FORCE UNIQUE SLUG - Always add timestamp
+    const timestamp = Date.now();
+    let slug = form.slug && form.slug.trim() ? form.slug.trim() : '';
+    
+    if (slug && slug !== '') {
+      slug = `${slug}-${timestamp}`;
+    } else {
+      const baseSlug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      slug = `${baseSlug}-${timestamp}`;
+    }
+    
+    // ✅ FORCE UNIQUE SKU - Always add timestamp
+    let sku = form.sku && form.sku.trim() ? form.sku.trim() : '';
+    
+    if (sku && sku !== '') {
+      sku = `${sku}-${timestamp}`;
+    } else {
+      const prefix = form.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '') || 'PRD';
+      sku = `${prefix}-${timestamp}`;
+    }
+
+    // Clean unit_value
+    let unitValue = null;
+    if (form.unit_value && form.unit_value !== '') {
+      unitValue = Math.round(Number(form.unit_value));
+      if (isNaN(unitValue)) unitValue = null;
+    }
+
+    // ✅ FIXED: Build product data with correct variant_combinations format
     const productData = {
       name: form.name.trim(),
-      description: form.description?.trim() || "",
-      short_description: form.short_description?.trim() || "",
-      category_id: form.category_id,
+      description: form.description || "",
+      short_description: form.short_description || "",
+      category_id: categoryId,
       subcategory_id: form.subcategory_id || null,
       price: Number(form.price),
       compare_price: form.compare_price ? Number(form.compare_price) : null,
       cost_per_unit: form.cost_per_unit ? Number(form.cost_per_unit) : null,
       stock_quantity: Number(form.stock_quantity) || 0,
       low_stock_threshold: Number(form.low_stock_threshold) || 5,
-      unit: form.unit,
-      unit_value: form.unit_value ? Number(form.unit_value) : null,
+      unit: form.unit || "piece",
+      unit_value: unitValue,
       main_image: form.main_image || "",
       gallery_images: form.gallery_images || [],
-      slug: form.slug || generateSlug(form.name),
+      slug: slug,
       meta_title: form.meta_title || "",
       meta_description: form.meta_description || "",
       status: form.status,
-      is_featured: form.is_featured,
-      is_trending: form.is_trending,
+      is_featured: form.is_featured || false,
+      is_trending: form.is_trending || false,
       tags: form.tags || [],
       weight_in_grams: form.weight_in_grams ? Number(form.weight_in_grams) : null,
       brand: form.brand || "",
-      sku: form.sku || generateSKU(form.name),
+      sku: sku,
       barcode: form.barcode || null,
-      has_variants: form.has_variants,
+      has_variants: form.has_variants || false,
       variant_attributes: form.has_variants ? variantAttributes.map(a => a.name) : [],
       variants: form.has_variants ? generatedVariants : [],
-      variant_combinations: form.has_variants ? variantAttributes : [],
     };
+    
+    // ✅ IMPORTANT: Add variant_combinations in the correct format for API
+    if (form.has_variants && variantAttributes.length > 0) {
+      productData.variant_combinations = variantAttributes.map(attr => ({
+        attribute_name: attr.name,
+        values: attr.values
+      }));
+    }
 
-    console.log("Sending product data:", JSON.stringify(productData, null, 2));
+    console.log("Final product data being sent:", JSON.stringify(productData, null, 2));
 
     try {
       setSubmitting(true);
@@ -419,7 +513,7 @@ export function AdminProducts() {
       setShowModal(false);
       resetForm();
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error saving product:", error);
       alert(error.message || "Failed to save product. Check console for details.");
     } finally {
       setSubmitting(false);
@@ -462,6 +556,8 @@ export function AdminProducts() {
     setVariantAttributes([]);
     setGeneratedVariants([]);
     setTagInput("");
+    setNewAttributeName("");
+    setNewAttributeValues("");
   };
 
   if (loading) {
@@ -503,7 +599,13 @@ export function AdminProducts() {
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20" />
+            <input 
+              type="text" 
+              placeholder="Search products..." 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20" 
+            />
           </div>
           <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${showFilters ? "bg-[#3B82F6] text-white" : "bg-white border border-gray-200 text-gray-500"}`}>
             <Filter className="w-4 h-4" /> Filter
@@ -617,7 +719,6 @@ export function AdminProducts() {
                           <RefreshCcw className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">Auto-generated from product name</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
@@ -797,7 +898,6 @@ export function AdminProducts() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
                       <input type="text" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="Auto-generated" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-sm border border-gray-200" />
-                      <p className="text-xs text-gray-400 mt-1">URL-friendly version of the product name</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Meta Title</label>
@@ -831,14 +931,15 @@ export function AdminProducts() {
                         <button type="button" onClick={addAttribute} className="flex items-center gap-1 px-3 py-1.5 bg-[#3B82F6] text-white rounded-lg text-sm">
                           <PlusCircle className="w-3.5 h-3.5" /> Add Attribute
                         </button>
+                        
                         {variantAttributes.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {variantAttributes.map((attr, idx) => (
-                              <div key={idx} className="inline-flex items-center gap-2 px-2 py-1 bg-white rounded-lg text-sm">
+                              <div key={idx} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg text-sm border border-gray-200">
                                 <span className="font-medium text-gray-800">{attr.name}:</span>
                                 <span className="text-gray-600">{attr.values.join(", ")}</span>
-                                <button type="button" onClick={() => removeAttribute(idx)} className="text-red-500">
-                                  <X className="w-3 h-3" />
+                                <button type="button" onClick={() => removeAttribute(idx)} className="text-red-500 hover:text-red-700">
+                                  <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             ))}
@@ -856,34 +957,57 @@ export function AdminProducts() {
                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Price</th>
                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Stock</th>
                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                               </tr>
+                              </tr>
                             </thead>
                             <tbody>
                               {generatedVariants.map((variant, idx) => (
                                 <tr key={idx} className="border-b border-gray-100">
                                   <td className="px-3 py-2">
-                                    <div className="flex gap-1">
-                                      {variant.attributes.map((attr, i) => (
-                                        <span key={i} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{attr.value}</span>
+                                    <div className="flex gap-1 flex-wrap">
+                                      {variant.attributes?.map((attr, i) => (
+                                        <span key={i} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                                          {attr.name}: {attr.value}
+                                        </span>
                                       ))}
                                     </div>
-                                   </td>
+                                  </td>
                                   <td className="px-3 py-2">
-                                    <input type="text" value={variant.sku} onChange={(e) => updateVariant(idx, "sku", e.target.value)} className="w-28 px-2 py-1 bg-gray-50 rounded text-xs" />
-                                   </td>
+                                    <input 
+                                      type="text" 
+                                      value={variant.sku || ""} 
+                                      onChange={(e) => updateVariantField(idx, "sku", e.target.value)} 
+                                      className="w-28 px-2 py-1 bg-gray-50 rounded text-xs" 
+                                    />
+                                  </td>
                                   <td className="px-3 py-2">
-                                    <input type="number" step="0.01" value={variant.price || ""} onChange={(e) => updateVariant(idx, "price", e.target.value ? parseFloat(e.target.value) : null)} className="w-24 px-2 py-1 bg-gray-50 rounded text-xs" placeholder="Price" />
-                                   </td>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={variant.price || ""} 
+                                      onChange={(e) => updateVariantField(idx, "price", e.target.value ? parseFloat(e.target.value) : null)} 
+                                      className="w-24 px-2 py-1 bg-gray-50 rounded text-xs" 
+                                      placeholder="Price" 
+                                    />
+                                  </td>
                                   <td className="px-3 py-2">
-                                    <input type="number" value={variant.stock_quantity} onChange={(e) => updateVariant(idx, "stock_quantity", parseInt(e.target.value) || 0)} className="w-20 px-2 py-1 bg-gray-50 rounded text-xs" />
-                                   </td>
+                                    <input 
+                                      type="number" 
+                                      value={variant.stock_quantity || 0} 
+                                      onChange={(e) => updateVariantField(idx, "stock_quantity", parseInt(e.target.value) || 0)} 
+                                      className="w-20 px-2 py-1 bg-gray-50 rounded text-xs" 
+                                    />
+                                  </td>
                                   <td className="px-3 py-2">
-                                    <select value={variant.status} onChange={(e) => updateVariant(idx, "status", e.target.value)} className="px-2 py-1 bg-gray-50 rounded text-xs">
+                                    <select 
+                                      value={variant.status || "active"} 
+                                      onChange={(e) => updateVariantField(idx, "status", e.target.value)} 
+                                      className="px-2 py-1 bg-gray-50 rounded text-xs"
+                                    >
                                       <option value="active">Active</option>
                                       <option value="inactive">Inactive</option>
                                     </select>
-                                   </td>
-                                 </tr>
+                                  </td>
+                                </tr>
                               ))}
                             </tbody>
                           </table>

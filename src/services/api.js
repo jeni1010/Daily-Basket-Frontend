@@ -29,7 +29,6 @@ function clearAuthData() {
 // Updated with correct endpoints from API docs
 function isPublicEndpoint(endpoint) {
   const publicEndpoints = [
-    // Auth endpoints
     '/auth/signin',
     '/auth/signup', 
     '/auth/verify',
@@ -37,11 +36,9 @@ function isPublicEndpoint(endpoint) {
     '/auth/resetPass',
     '/auth/auth/google',
     
-    // Customer public endpoints
     '/customer/products',
     '/customer/categories',
     
-    // Health and root
     '/',
     '/health'
   ];
@@ -76,9 +73,19 @@ async function apiRequest(endpoint, options = {}) {
   const needsAuth = requiresAuth(endpoint);
   
   const headers = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
+  
+  // Check if we should add Content-Type header
+  const isGetRequest = options.method === 'GET' || (!options.method && endpoint.includes('/customer/'));
+  const isEmptyBody = options.body === undefined || 
+                      options.body === null || 
+                      (typeof options.body === 'object' && Object.keys(options.body).length === 0);
+  const shouldAddContentType = !isEmptyBody && !isGetRequest;
+  
+  if (shouldAddContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
   
   // Add authorization header if token exists and endpoint needs auth
   if (token && needsAuth) {
@@ -92,13 +99,23 @@ async function apiRequest(endpoint, options = {}) {
     credentials: 'include',
   };
   
-  // Handle request body
-  if (options.body) {
+  // ✅ FIXED: Allow body for DELETE requests (removed DELETE exclusion)
+  const hasBody = !isGetRequest &&
+                  options.body !== undefined && 
+                  options.body !== null && 
+                  (typeof options.body !== 'object' || Object.keys(options.body).length > 0);
+  
+  if (hasBody) {
     if (typeof options.body === 'string') {
       config.body = options.body;
     } else {
       config.body = JSON.stringify(options.body);
     }
+  }
+  
+  // Add AbortController signal if provided (for timeout handling)
+  if (options.signal) {
+    config.signal = options.signal;
   }
   
   let url = API_BASE_URL + endpoint;
@@ -107,16 +124,20 @@ async function apiRequest(endpoint, options = {}) {
     url += `?${queryParams}`;
   }
   
+  console.log(`API Request: ${config.method} ${url}`, hasBody ? `Body: ${config.body}` : '(Empty Body)');
+  
   try {
     const response = await fetch(url, config);
     
     // Handle 401 Unauthorized
     if (response.status === 401) {
       console.warn(`401 Unauthorized for ${endpoint}`);
-      clearAuthData();
       
-      // Don't redirect for auth endpoints
-      if (!endpoint.includes('/auth/')) {
+      if (needsAuth) {
+        clearAuthData();
+      }
+      
+      if (!endpoint.includes('/auth/') && !isPublic) {
         const currentPath = window.location.pathname;
         if (!currentPath.includes('/login') && !currentPath.includes('/signin')) {
           window.location.href = `/signin?redirect=${encodeURIComponent(currentPath)}`;
@@ -142,6 +163,11 @@ async function apiRequest(endpoint, options = {}) {
       throw error;
     }
     
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
     // Parse response
     let data;
     const contentType = response.headers.get('content-type');
@@ -156,8 +182,10 @@ async function apiRequest(endpoint, options = {}) {
         } catch (e) {
           data = { message: text };
         }
-      } else {
+      } else if (text && text.trim()) {
         data = { message: text };
+      } else {
+        data = { success: true };
       }
     }
     
@@ -180,7 +208,9 @@ async function apiRequest(endpoint, options = {}) {
       throw networkError;
     }
     
-    console.error(`API Error [${endpoint}]:`, error);
+    if (error.name !== 'AbortError') {
+      console.error(`API Error [${endpoint}]:`, error);
+    }
     throw error;
   }
 }

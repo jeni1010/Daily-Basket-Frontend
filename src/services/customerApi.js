@@ -22,6 +22,23 @@ async function getCartItemsFromAPI() {
   }
 }
 
+// Helper function to get product by ID (for variant checking)
+async function getProductById(productId) {
+  try {
+    const response = await apiRequest(`/customer/products?search=${productId}`);
+    let products = [];
+    if (response && response.products && Array.isArray(response.products)) {
+      products = response.products;
+    } else if (Array.isArray(response)) {
+      products = response;
+    }
+    return products.find(p => p._id === productId || p.id === productId);
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return null;
+  }
+}
+
 // Helper function to ensure address fields meet minimum length requirements
 function validateAndFixAddress(address) {
   let addressLine1 = address.address_line1 || address.address || "Address Line";
@@ -118,6 +135,28 @@ function clearAuthData() {
   sessionStorage.removeItem('token');
   sessionStorage.removeItem('user');
 }
+
+// Cache for product variant info
+const productVariantCache = new Map();
+
+// Cache for wishlist data
+let wishlistCache = null;
+let lastWishlistFetch = 0;
+const WISHLIST_CACHE_DURATION = 5000;
+
+// Prevention flags for duplicate API calls
+let isCreatingOrder = false;
+let isClearingCart = false;
+let isCreatingRazorpayOrder = false;
+let lastOrderIdProcessed = null;
+let lastProcessTime = 0;
+
+// Wishlist request deduplication
+let pendingWishlistRequest = null;
+let pendingAddRequest = null;
+let pendingRemoveRequest = null;
+let lastRemoveTime = 0;
+const REMOVE_DEBOUNCE_TIME = 1000;
 
 export const customerApi = {
   // ==================== AUTH METHODS ====================
@@ -278,11 +317,32 @@ export const customerApi = {
     }
   },
   
+  getProductById: async (productId) => {
+    try {
+      if (productVariantCache.has(productId)) {
+        return productVariantCache.get(productId);
+      }
+      
+      const products = await customerApi.getProducts({ limit: 100 });
+      const product = products.find(p => p._id === productId || p.id === productId);
+      
+      if (product) {
+        productVariantCache.set(productId, product);
+      }
+      
+      return product;
+    } catch (error) {
+      console.error('Error fetching product by ID:', error);
+      return null;
+    }
+  },
+  
   getProductBySlug: async (slug) => {
     try {
       const response = await apiRequest(`/customer/products/${slug}`);
-      return response;
+      return response.data || response;
     } catch (error) {
+      console.error('Error fetching product by slug:', error);
       throw error;
     }
   },
@@ -300,20 +360,46 @@ export const customerApi = {
     }
   },
   
+  // ==================== COUPONS ====================
+  getCustomerCoupons: async () => {
+    try {
+      const response = await apiRequest('/customer/coupons');
+      return response;
+    } catch (error) {
+      console.error('Error fetching coupons:', error);
+      return { coupons: [] };
+    }
+  },
+  
   // ==================== CART OPERATIONS ====================
   cart: {
     add: async (productId, quantity = 1, variantSku = null) => {
       try {
+        let finalVariantSku = variantSku || "";
+        
+        if (!finalVariantSku) {
+          try {
+            const product = await customerApi.getProductById(productId);
+            if (product && product.has_variants === true && product.variants && product.variants.length > 0) {
+              finalVariantSku = product.variants[0].sku;
+              console.log('Using first variant SKU:', finalVariantSku);
+            }
+          } catch (err) {
+            console.log('Could not fetch product, sending empty variant_sku');
+          }
+        }
+        
         const response = await apiRequest('/customer/cart/add', {
           method: 'POST',
           body: { 
             product_id: productId, 
-            quantity, 
-            variant_sku: variantSku || "" 
+            quantity: quantity, 
+            variant_sku: finalVariantSku 
           },
         });
         return response;
       } catch (error) {
+        console.error('Error adding to cart:', error);
         throw error;
       }
     },
@@ -354,6 +440,9 @@ export const customerApi = {
     
     remove: async (productId, variantSku = null) => {
       try {
+        if (!productId) {
+          throw new Error("Product ID is required");
+        }
         const response = await apiRequest('/customer/cart/remove', {
           method: 'DELETE',
           body: { 
@@ -363,18 +452,30 @@ export const customerApi = {
         });
         return response;
       } catch (error) {
+        console.error('Error removing from cart:', error);
         throw error;
       }
     },
     
     clear: async () => {
+      if (isClearingCart) {
+        console.log('Cart clear already in progress, skipping...');
+        return;
+      }
+      
       try {
+        isClearingCart = true;
         const response = await apiRequest('/customer/cart/clear', {
           method: 'DELETE',
         });
         return response;
       } catch (error) {
+        console.error('Error clearing cart:', error);
         throw error;
+      } finally {
+        setTimeout(() => {
+          isClearingCart = false;
+        }, 500);
       }
     },
   },
@@ -382,45 +483,128 @@ export const customerApi = {
   // ==================== WISHLIST OPERATIONS ====================
   wishlist: {
     add: async (productId) => {
-      try {
-        const response = await apiRequest('/customer/wishlist/add', {
-          method: 'POST',
-          body: { product_id: productId },
-        });
-        return response;
-      } catch (error) {
-        throw error;
+      if (!productId) {
+        throw new Error("Product ID is required");
       }
+      
+      const requestKey = `add:${productId}`;
+      
+      if (pendingAddRequest && pendingAddRequest.key === requestKey) {
+        console.log(`Using pending add request for product: ${productId}`);
+        return pendingAddRequest.promise;
+      }
+      
+      console.log('Adding to wishlist:', productId);
+      
+      const promise = (async () => {
+        try {
+          const response = await apiRequest('/customer/wishlist/add', {
+            method: 'POST',
+            body: { product_id: productId },
+          });
+          wishlistCache = null;
+          return response;
+        } catch (error) {
+          console.error('Error adding to wishlist:', error);
+          throw error;
+        } finally {
+          if (pendingAddRequest && pendingAddRequest.key === requestKey) {
+            pendingAddRequest = null;
+          }
+        }
+      })();
+      
+      pendingAddRequest = { key: requestKey, promise };
+      return promise;
     },
     
-    get: async () => {
-      try {
-        const response = await apiRequest('/customer/wishlist');
-        let wishlistData = [];
-        if (response && response.products && Array.isArray(response.products)) {
-          wishlistData = response.products;
-        } else if (response && response.data && Array.isArray(response.data)) {
-          wishlistData = response.data;
-        } else if (Array.isArray(response)) {
-          wishlistData = response;
-        }
-        return wishlistData;
-      } catch (error) {
-        console.error('Error fetching wishlist:', error);
-        return [];
+    get: async (forceRefresh = false) => {
+      if (pendingWishlistRequest && !forceRefresh) {
+        console.log('Using pending wishlist request');
+        return pendingWishlistRequest;
       }
+      
+      const now = Date.now();
+      if (!forceRefresh && wishlistCache && (now - lastWishlistFetch) < WISHLIST_CACHE_DURATION) {
+        console.log('Using cached wishlist data');
+        return wishlistCache;
+      }
+      
+      const promise = (async () => {
+        try {
+          const response = await apiRequest('/customer/wishlist');
+          console.log('Wishlist get response:', response);
+          
+          let wishlistData = [];
+          if (response && response.products && Array.isArray(response.products)) {
+            wishlistData = response.products;
+          } else if (response && response.data && Array.isArray(response.data)) {
+            wishlistData = response.data;
+          } else if (Array.isArray(response)) {
+            wishlistData = response;
+          }
+          
+          wishlistCache = wishlistData;
+          lastWishlistFetch = now;
+          
+          return wishlistData;
+        } catch (error) {
+          console.error('Error fetching wishlist:', error);
+          return wishlistCache || [];
+        } finally {
+          pendingWishlistRequest = null;
+        }
+      })();
+      
+      pendingWishlistRequest = promise;
+      return promise;
     },
     
     remove: async (productId) => {
-      try {
-        const response = await apiRequest('/customer/wishlist/remove', {
-          method: 'DELETE',
-          body: { product_id: productId },
-        });
-        return response;
-      } catch (error) {
-        throw error;
+      if (!productId) {
+        throw new Error("Product ID is required");
       }
+      
+      const now = Date.now();
+      if ((now - lastRemoveTime) < REMOVE_DEBOUNCE_TIME) {
+        console.log(`Debouncing duplicate remove request for product: ${productId}`);
+        return { success: true, debounced: true };
+      }
+      
+      const requestKey = `remove:${productId}`;
+      
+      if (pendingRemoveRequest && pendingRemoveRequest.key === requestKey) {
+        console.log(`Using pending remove request for product: ${productId}`);
+        return pendingRemoveRequest.promise;
+      }
+      
+      console.log('Removing from wishlist:', productId);
+      lastRemoveTime = now;
+      
+      const promise = (async () => {
+        try {
+          const response = await apiRequest('/customer/wishlist/remove', {
+            method: 'DELETE',
+            body: { product_id: productId },
+          });
+          wishlistCache = null;
+          return response;
+        } catch (error) {
+          console.error('Error removing from wishlist:', error);
+          if (error.status === 404) {
+            console.log('Product was not in wishlist');
+            return { success: true, alreadyRemoved: true };
+          }
+          throw error;
+        } finally {
+          if (pendingRemoveRequest && pendingRemoveRequest.key === requestKey) {
+            pendingRemoveRequest = null;
+          }
+        }
+      })();
+      
+      pendingRemoveRequest = { key: requestKey, promise };
+      return promise;
     },
     
     clear: async () => {
@@ -428,17 +612,39 @@ export const customerApi = {
         const response = await apiRequest('/customer/wishlist/clear', {
           method: 'DELETE',
         });
+        wishlistCache = null;
         return response;
       } catch (error) {
+        console.error('Error clearing wishlist:', error);
         throw error;
       }
+    },
+    
+    isInWishlist: async (productId) => {
+      const wishlist = await customerApi.wishlist.get();
+      return wishlist.some(item => (item._id === productId || item.id === productId));
+    },
+    
+    refreshCache: () => {
+      wishlistCache = null;
+      lastWishlistFetch = 0;
+      pendingWishlistRequest = null;
+      pendingAddRequest = null;
+      pendingRemoveRequest = null;
     },
   },
   
   // ==================== ORDERS ====================
   orders: {
     create: async (addressId, paymentMethod = 'cod', notes = '', couponCode = null) => {
+      if (isCreatingOrder) {
+        console.log('Order creation already in progress, skipping...');
+        return;
+      }
+      
       try {
+        isCreatingOrder = true;
+        
         const cartItems = await getCartItemsFromAPI();
         
         if (!cartItems || cartItems.length === 0) {
@@ -448,6 +654,25 @@ export const customerApi = {
         const currentUser = getCurrentUser();
         
         let addressDetails = null;
+        let couponDetails = null;
+        
+        // ✅ Get coupon details if coupon code is provided
+        if (couponCode) {
+          try {
+            const couponsResponse = await customerApi.getCustomerCoupons();
+            let coupons = [];
+            if (couponsResponse && couponsResponse.coupons) {
+              coupons = couponsResponse.coupons;
+            } else if (Array.isArray(couponsResponse)) {
+              coupons = couponsResponse;
+            }
+            couponDetails = coupons.find(c => c.code === couponCode);
+            console.log('✅ Found coupon details:', couponDetails);
+          } catch (err) {
+            console.error('Error fetching coupon:', err);
+          }
+        }
+        
         try {
           const addressesResponse = await customerApi.addresses.getAll();
           let addresses = [];
@@ -480,9 +705,25 @@ export const customerApi = {
           };
         });
         
-        const shippingCharge = subtotal >= 200 ? 0 : 40;
-        const taxAmount = Math.round(subtotal * 0.05);
-        const grandTotal = subtotal + shippingCharge + taxAmount;
+        // ✅ Calculate discount if coupon applied
+        let discountAmount = 0;
+        if (couponCode && couponDetails) {
+          if (couponDetails.coupon_type === 'percentage') {
+            discountAmount = (subtotal * couponDetails.discount_value) / 100;
+            if (couponDetails.maximum_discount_amount) {
+              discountAmount = Math.min(discountAmount, couponDetails.maximum_discount_amount);
+            }
+          } else if (couponDetails.coupon_type === 'fixed') {
+            discountAmount = Math.min(couponDetails.discount_value, subtotal);
+          }
+          discountAmount = Math.round(discountAmount);
+          console.log(`✅ Coupon discount applied: ₹${discountAmount}`);
+        }
+        
+        const discountedSubtotal = subtotal - discountAmount;
+        const shippingCharge = discountedSubtotal >= 200 ? 0 : 40;
+        const taxAmount = Math.round(discountedSubtotal * 0.05);
+        const grandTotal = discountedSubtotal + shippingCharge + taxAmount;
         
         const customerName = currentUser?.name || 
                            currentUser?.full_name || 
@@ -500,9 +741,19 @@ export const customerApi = {
           payment_method: paymentMethod,
           notes: notes || "",
           subtotal: subtotal,
+          discount_amount: discountAmount,
           shipping_charge: shippingCharge,
           tax_amount: taxAmount,
           grand_total: grandTotal,
+          summary: {
+            subtotal: subtotal,
+            discount: discountAmount,
+            discounted_subtotal: discountedSubtotal,
+            shipping: shippingCharge,
+            tax: taxAmount,
+            total: grandTotal,
+            amount: grandTotal
+          },
           order_status: "placed",
           payment_status: paymentMethod === 'cod' ? 'pending' : 'paid',
           customer_name: customerName,
@@ -517,6 +768,7 @@ export const customerApi = {
         
         if (couponCode) {
           orderData.coupon_code = couponCode;
+          orderData.coupon_discount = discountAmount;
         }
         
         const response = await apiRequest('/customer/create-order', {
@@ -524,27 +776,28 @@ export const customerApi = {
           body: orderData,
         });
         
-        // Extract order ID from response
         let orderId = null;
         if (response && response.data) {
           orderId = response.data._id || response.data.id || response.data.order_id;
+          // ✅ Store the discounted amount in the response
+          response.data.discounted_amount = grandTotal;
+          response.data.original_amount = subtotal;
+          response.data.discount_applied = discountAmount;
         } else if (response) {
           orderId = response._id || response.id || response.order_id;
-        }
-        
-        // Clear cart on success
-        if (orderId) {
-          try {
-            await customerApi.cart.clear();
-          } catch (clearError) {
-            console.error('Error clearing cart:', clearError);
-          }
+          response.discounted_amount = grandTotal;
+          response.original_amount = subtotal;
+          response.discount_applied = discountAmount;
         }
         
         return response.data || response;
       } catch (error) {
         console.error('Order creation error:', error);
         throw error;
+      } finally {
+        setTimeout(() => {
+          isCreatingOrder = false;
+        }, 500);
       }
     },
     
@@ -562,29 +815,98 @@ export const customerApi = {
           throw new Error('Order ID is required for payment creation');
         }
         
-        console.log('Creating Razorpay order with order_id:', orderId);
-        console.log('Amount:', amount, 'Currency:', currency);
+        // ✅ First, get the order details to get the discounted amount
+        let orderDetails = null;
+        try {
+          orderDetails = await customerApi.orders.getDetails(orderId);
+          console.log('✅ Fetched order details for Razorpay:', orderDetails);
+        } catch (err) {
+          console.error('Error fetching order details:', err);
+        }
         
-        const response = await apiRequest(`/payments/create-order/${orderId}`, {
-          method: 'POST',
-          body: {
-            amount: amount,
-            currency: currency
-          },
-        });
+        // ✅ Use the discounted amount from the order if available
+        let discountedAmount = amount;
+        if (orderDetails) {
+          discountedAmount = orderDetails.summary?.amount || 
+                             orderDetails.grand_total || 
+                             orderDetails.discounted_amount ||
+                             amount;
+          console.log(`✅ Order has discounted amount: ₹${discountedAmount} (original passed: ₹${amount})`);
+        }
         
-        console.log('Razorpay order response:', response);
+        const now = Date.now();
+        if (lastOrderIdProcessed === orderId && (now - lastProcessTime) < 2000) {
+          console.log(`Duplicate Razorpay order request detected for orderId: ${orderId}, skipping...`);
+          return {
+            key_id: null,
+            order_id: null,
+            amount: discountedAmount,
+            currency: currency,
+            duplicate: true
+          };
+        }
         
-        // Standardize response format
-        return {
-          key_id: response.key_id || response.razorpay_key_id,
-          order_id: response.order_id || response.razorpay_order_id,
-          amount: response.amount,
-          currency: response.currency,
-          ...response
-        };
+        if (isCreatingRazorpayOrder) {
+          console.log('Razorpay order creation already in progress, waiting...');
+          let waited = 0;
+          while (isCreatingRazorpayOrder && waited < 20) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            waited++;
+          }
+          if (isCreatingRazorpayOrder) {
+            console.log('Timeout waiting for existing Razorpay order creation');
+            return {
+              key_id: null,
+              order_id: null,
+              amount: discountedAmount,
+              currency: currency,
+              duplicate: true
+            };
+          }
+        }
+        
+        isCreatingRazorpayOrder = true;
+        lastOrderIdProcessed = orderId;
+        lastProcessTime = now;
+        
+        console.log('Creating Razorpay payment for order_id:', orderId);
+        console.log('✅ Amount to be paid (discounted):', discountedAmount);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        try {
+          // ✅ Send the discounted amount to the backend
+          const response = await apiRequest(`/payments/create-order/${orderId}`, {
+            method: 'POST',
+            body: { amount: discountedAmount }
+          });
+          
+          clearTimeout(timeoutId);
+          console.log('Razorpay order response:', response);
+          
+          const responseData = response.data || response;
+          
+          return {
+            key_id: responseData.key_id || responseData.razorpay_key_id,
+            order_id: responseData.order_id || responseData.razorpay_order_id,
+            amount: responseData.amount || discountedAmount,
+            currency: responseData.currency || currency,
+            ...response
+          };
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            console.error('Request timeout');
+            throw new Error('Request timed out. Please try again.');
+          }
+          throw error;
+        } finally {
+          isCreatingRazorpayOrder = false;
+        }
       } catch (error) {
         console.error('Error creating Razorpay order:', error);
+        isCreatingRazorpayOrder = false;
         
         if (error.message === 'Session expired. Please login again.' || error.status === 401) {
           clearAuthData();
@@ -598,7 +920,7 @@ export const customerApi = {
     
     verifyPayment: async (paymentData) => {
       try {
-        const response = await apiRequest('/payments/verify-payment', {
+        const response = await apiRequest('/customer/verify-payment', {
           method: 'POST',
           body: paymentData,
         });
@@ -836,8 +1158,8 @@ export const customerApi = {
     return customerApi.wishlist.add(productId);
   },
   
-  getWishlist: async () => {
-    return customerApi.wishlist.get();
+  getWishlist: async (forceRefresh = false) => {
+    return customerApi.wishlist.get(forceRefresh);
   },
   
   removeFromWishlist: async (productId) => {
@@ -846,6 +1168,14 @@ export const customerApi = {
   
   clearWishlist: async () => {
     return customerApi.wishlist.clear();
+  },
+  
+  isInWishlist: async (productId) => {
+    return customerApi.wishlist.isInWishlist(productId);
+  },
+  
+  refreshWishlistCache: () => {
+    customerApi.wishlist.refreshCache();
   },
   
   createOrder: async (addressId, paymentMethod = 'cod', notes = '', couponCode = null) => {
