@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Trash2, Plus, Minus, ShoppingBag, ArrowRight, Tag, Loader2,
   Truck, CreditCard, Leaf, Headphones, ChevronRight, AlertCircle,
-  Gift, Percent, DollarSign, Ticket, X, Sparkles
+  Gift, Percent, DollarSign, Ticket, X, Sparkles, Edit2
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { customerApi } from "../../services/customerApi";
@@ -21,6 +21,11 @@ export function CartPage() {
   const [loading, setLoading] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [updatingItemId, setUpdatingItemId] = useState(null);
+  
+  // ✅ NEW: For manual quantity input
+  const [editingQuantityId, setEditingQuantityId] = useState(null);
+  const [tempQuantity, setTempQuantity] = useState("");
+  const inputRef = useRef(null);
   
   // Coupon modal states
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -43,6 +48,14 @@ export function CartPage() {
       quantity: item.quantity
     })));
   }, [cart]);
+
+  // ✅ Focus input when editing starts
+  useEffect(() => {
+    if (editingQuantityId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingQuantityId]);
 
   const fetchAvailableCoupons = async () => {
     try {
@@ -149,6 +162,53 @@ export function CartPage() {
     setAppliedCouponData(null);
   };
 
+  // ✅ NEW: Start editing quantity
+  const startEditingQuantity = (itemId, currentQuantity) => {
+    setEditingQuantityId(itemId);
+    setTempQuantity(currentQuantity.toString());
+  };
+
+  // ✅ NEW: Handle quantity input change
+  const handleQuantityInputChange = (e) => {
+    const value = e.target.value;
+    // Allow empty string or numbers only
+    if (value === '' || /^\d+$/.test(value)) {
+      setTempQuantity(value);
+    }
+  };
+
+  // ✅ NEW: Save quantity on blur or Enter key
+  const saveQuantity = async (itemId, variantSku) => {
+    const newQuantity = parseInt(tempQuantity);
+    
+    if (isNaN(newQuantity) || newQuantity < 1) {
+      // If invalid, revert to original
+      const cartItem = cart.find(item => item.id === itemId);
+      setTempQuantity(cartItem?.quantity.toString() || "1");
+      setEditingQuantityId(null);
+      return;
+    }
+    
+    const cartItem = cart.find(item => item.id === itemId);
+    if (cartItem && cartItem.quantity !== newQuantity) {
+      await handleUpdateQuantity(itemId, newQuantity, variantSku);
+    }
+    
+    setEditingQuantityId(null);
+  };
+
+  // ✅ NEW: Handle key down (Enter to save, Escape to cancel)
+  const handleKeyDown = (e, itemId, variantSku) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveQuantity(itemId, variantSku);
+    } else if (e.key === 'Escape') {
+      const cartItem = cart.find(item => item.id === itemId);
+      setTempQuantity(cartItem?.quantity.toString() || "1");
+      setEditingQuantityId(null);
+    }
+  };
+
   const handleUpdateQuantity = async (itemId, newQuantity, variantSku = null) => {
     const cartItem = cart.find(item => item.id === itemId);
     const finalVariantSku = variantSku || cartItem?.variant_sku || cartItem?.variantSku || "";
@@ -202,13 +262,11 @@ export function CartPage() {
 
   const subtotal = cartTotal;
   const discount = couponApplied ? couponDiscount : 0;
-  const taxes = Math.round((subtotal - discount) * 0.05); // ✅ FIXED: Tax on discounted amount
-  const deliveryCharge = (subtotal - discount) >= 200 ? 0 : 40; // ✅ FIXED: Free shipping based on discounted amount
-  const total = (subtotal - discount) + taxes + deliveryCharge; // ✅ FIXED: Proper discounted total
+  const taxes = Math.round((subtotal - discount) * 0.05);
+  const deliveryCharge = (subtotal - discount) >= 200 ? 0 : 40;
+  const total = (subtotal - discount) + taxes + deliveryCharge;
 
-  // ✅ NEW: Function to handle checkout with coupon data
   const handleProceedToCheckout = () => {
-    // Store coupon information in sessionStorage to pass to checkout
     if (couponApplied && appliedCouponData) {
       const couponData = {
         code: appliedCouponData.code,
@@ -222,7 +280,6 @@ export function CartPage() {
       sessionStorage.removeItem('appliedCoupon');
     }
     
-    // Store the discounted total for checkout
     const orderSummary = {
       subtotal: subtotal,
       discount: discount,
@@ -236,7 +293,6 @@ export function CartPage() {
     };
     sessionStorage.setItem('orderSummary', JSON.stringify(orderSummary));
     
-    // Navigate to checkout
     navigate("/checkout");
   };
 
@@ -310,6 +366,8 @@ export function CartPage() {
             <AnimatePresence>
               {cart.map((item, idx) => {
                 const variantDisplay = getVariantDisplay(item);
+                const isEditing = editingQuantityId === item.id;
+                
                 return (
                   <motion.div
                     key={`${item.id}-${item.variant_sku || item.variantSku || 'default'}`}
@@ -369,12 +427,13 @@ export function CartPage() {
                             )}
                           </div>
 
+                          {/* ✅ Updated Quantity Controls with Manual Input */}
                           <div className="flex items-center gap-3">
                             <p className="text-sm text-gray-500 hidden sm:block">Qty:</p>
                             <div className="flex items-center bg-[#F5EBD9]/30 rounded-full overflow-hidden">
                               <button
                                 onClick={() => handleUpdateQuantity(item.id, item.quantity - 1, item.variant_sku || item.variantSku)}
-                                disabled={updatingItemId === item.id}
+                                disabled={updatingItemId === item.id || isEditing}
                                 className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
                               >
                                 {updatingItemId === item.id ? (
@@ -383,17 +442,43 @@ export function CartPage() {
                                   <Minus className="w-4 h-4 text-gray-600" />
                                 )}
                               </button>
-                              <span className="w-10 text-center text-sm font-semibold text-gray-800">
-                                {item.quantity}
-                              </span>
+                              
+                              {/* ✅ Click to edit quantity */}
+                              {isEditing ? (
+                                <input
+                                  ref={inputRef}
+                                  type="text"
+                                  value={tempQuantity}
+                                  onChange={handleQuantityInputChange}
+                                  onBlur={() => saveQuantity(item.id, item.variant_sku || item.variantSku)}
+                                  onKeyDown={(e) => handleKeyDown(e, item.id, item.variant_sku || item.variantSku)}
+                                  className="w-12 text-center text-sm font-semibold text-gray-800 bg-transparent outline-none focus:ring-2 focus:ring-[#3E7C47] rounded"
+                                  disabled={updatingItemId === item.id}
+                                />
+                              ) : (
+                                <span 
+                                  onClick={() => startEditingQuantity(item.id, item.quantity)}
+                                  className="w-10 text-center text-sm font-semibold text-gray-800 cursor-pointer hover:text-[#3E7C47] transition-colors flex items-center justify-center gap-0.5"
+                                  title="Click to edit quantity"
+                                >
+                                  {item.quantity}
+                                  <Edit2 className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </span>
+                              )}
+                              
                               <button
                                 onClick={() => handleUpdateQuantity(item.id, item.quantity + 1, item.variant_sku || item.variantSku)}
-                                disabled={updatingItemId === item.id}
+                                disabled={updatingItemId === item.id || isEditing}
                                 className="w-8 h-8 flex items-center justify-center hover:bg-[#F5EBD9] transition-colors disabled:opacity-50"
                               >
                                 <Plus className="w-4 h-4 text-gray-600" />
                               </button>
                             </div>
+                            {isEditing && (
+                              <span className="text-[10px] text-gray-400 animate-pulse">
+                                Press Enter to save
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-4">

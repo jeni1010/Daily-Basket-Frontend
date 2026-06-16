@@ -210,6 +210,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // ✅ FIXED: addToCart - returns response properly and handles errors
   const addToCart = async (product, quantity = 1, variantSku = null) => {
     const productId = product.id || product._id;
     const finalVariantSku = variantSku || product.variant_sku || "";
@@ -241,12 +242,15 @@ export const AppProvider = ({ children }) => {
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
         return newCart;
       });
-      return;
+      return { success: true };
     }
     
     try {
-      await customerApi.cart.add(productId, quantity, finalVariantSku);
+      // ✅ Store the response
+      const response = await customerApi.cart.add(productId, quantity, finalVariantSku);
+      console.log('✅ Cart add response:', response);
       
+      // Update local cart state
       setCart(prevCart => {
         const existingItem = prevCart.find(item => (item.id === productId) && (item.variant_sku === finalVariantSku));
         let newCart;
@@ -273,9 +277,14 @@ export const AppProvider = ({ children }) => {
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
         return newCart;
       });
+      
+      // ✅ Return the response so the component knows it succeeded
+      return response;
       
     } catch (error) {
       console.error('Error adding to cart:', error);
+      
+      // ✅ Also update local state on error (optimistic update)
       setCart(prevCart => {
         const existingItem = prevCart.find(item => (item.id === productId) && (item.variant_sku === finalVariantSku));
         let newCart;
@@ -302,6 +311,9 @@ export const AppProvider = ({ children }) => {
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
         return newCart;
       });
+      
+      // ✅ Re-throw so the component can handle it
+      throw error;
     }
   };
 
