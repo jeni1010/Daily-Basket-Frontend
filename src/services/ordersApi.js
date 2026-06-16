@@ -35,6 +35,11 @@ export function calculateOrderTotal(order) {
     return order.summary.grand_total;
   }
   
+  // Check if order has total_amount
+  if (order.total_amount) {
+    return order.total_amount;
+  }
+  
   // Calculate from items
   if (order.items && order.items.length > 0) {
     const subtotal = order.items.reduce((sum, item) => {
@@ -61,10 +66,11 @@ export function getOrderStatusDisplay(status) {
     shipped: { label: 'Shipped', color: 'bg-indigo-100 text-indigo-700' },
     delivered: { label: 'Delivered', color: 'bg-emerald-100 text-emerald-700' },
     cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
-    pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-700' }
+    pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
+    processing: { label: 'Processing', color: 'bg-orange-100 text-orange-700' }
   };
   
-  return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+  return statusMap[status] || { label: status || 'Unknown', color: 'bg-gray-100 text-gray-700' };
 }
 
 // Helper to format payment status display
@@ -76,7 +82,7 @@ export function getPaymentStatusDisplay(status) {
     refunded: { label: 'Refunded', color: 'bg-gray-100 text-gray-700' }
   };
   
-  return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+  return statusMap[status] || { label: status || 'Unknown', color: 'bg-gray-100 text-gray-700' };
 }
 
 export const ordersApi = {
@@ -101,16 +107,16 @@ export const ordersApi = {
         queryParams.append('page', filters.page);
       }
       if (filters.limit) {
-        // ✅ FIXED: Enforce maximum limit of 100
         const limit = Math.min(filters.limit, 100);
         queryParams.append('limit', limit);
       } else {
-        // Default limit of 20 if not specified
         queryParams.append('limit', 20);
       }
       
       const url = `/admin/orders${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       const response = await apiRequest(url);
+      
+      console.log('📦 Orders API Response:', response);
       
       let orders = [];
       let total = 0;
@@ -232,10 +238,9 @@ export const ordersApi = {
     }
   },
   
-  // ✅ FIXED: Get recent orders with max limit of 100
+  // Get recent orders with max limit of 100
   getRecentOrders: async (limit = 10) => {
     try {
-      // Ensure limit doesn't exceed 100
       const safeLimit = Math.min(limit, 100);
       const response = await apiRequest(`/admin/dashboard/recent-orders?limit=${safeLimit}`);
       let orders = [];
@@ -250,6 +255,50 @@ export const ordersApi = {
     } catch (error) {
       console.error('Error fetching recent orders:', error);
       return [];
+    }
+  },
+  
+  // ✅ NEW: Get customer orders count and details
+  getCustomerOrderStats: async (customerId) => {
+    try {
+      // Fetch all orders for this customer
+      const response = await apiRequest(`/admin/orders?search=${customerId}&limit=100`);
+      
+      let orders = [];
+      if (response && response.orders && Array.isArray(response.orders)) {
+        orders = response.orders;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        orders = response.data;
+      } else if (Array.isArray(response)) {
+        orders = response;
+      }
+      
+      // Filter orders by customer ID
+      const customerOrders = orders.filter(order => {
+        const orderCustomerId = order.customer_id || order.user_id || order.customerId;
+        return orderCustomerId === customerId;
+      });
+      
+      // Calculate stats
+      const totalOrders = customerOrders.length;
+      const totalSpent = customerOrders.reduce((sum, order) => sum + calculateOrderTotal(order), 0);
+      const lastOrderDate = customerOrders.length > 0 
+        ? customerOrders.reduce((latest, order) => {
+            const orderDate = order.created_at || order.order_date;
+            if (!latest) return orderDate;
+            return new Date(orderDate) > new Date(latest) ? orderDate : latest;
+          }, null)
+        : null;
+      
+      return {
+        total: totalOrders,
+        total_spent: totalSpent,
+        last_order_date: lastOrderDate,
+        orders: customerOrders
+      };
+    } catch (error) {
+      console.error('Error fetching customer order stats:', error);
+      return { total: 0, total_spent: 0, last_order_date: null, orders: [] };
     }
   }
 };

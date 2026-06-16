@@ -65,17 +65,9 @@ export function WishlistPage() {
     if (window.confirm("Are you sure you want to clear your entire wishlist? This action cannot be undone.")) {
       setClearing(true);
       try {
-        // ONLY call the clear endpoint - NO loop of toggleWishlist!
         await customerApi.wishlist.clear();
-        
-        // Clear local state
         setWishlistProducts([]);
-        
-        // Also clear the context wishlist state
-        // You may want to add a method in AppContext to clear wishlist
-        // For now, just reload the wishlist to sync
         await loadWishlist();
-        
         alert("Wishlist cleared successfully!");
       } catch (error) {
         console.error("Error clearing wishlist:", error);
@@ -172,13 +164,16 @@ export function WishlistPage() {
                 className="cursor-pointer"
                 onClick={() => navigate(`/product/${item.slug}`)}
               >
-                <div className="h-48 bg-gray-50 flex items-center justify-center p-4">
+                {/* ✅ Updated: Full image visible with transparent background */}
+                <div className="h-48 bg-transparent flex items-center justify-center p-4">
                   {item.main_image ? (
                     <img
                       src={item.main_image}
                       alt={item.name}
                       className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                      onError={(e) => { e.target.src = "https://placehold.co/200x200/3E7C47/white?text=Product"; }}
+                      onError={(e) => { 
+                        e.target.src = "https://placehold.co/200x200/3E7C47/white?text=Product"; 
+                      }}
                     />
                   ) : (
                     <Package className="w-16 h-16 text-gray-300" />
