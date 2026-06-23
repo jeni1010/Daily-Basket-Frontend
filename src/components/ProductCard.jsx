@@ -21,7 +21,6 @@ export function ProductCard({ product }) {
   const [quantity, setQuantity] = useState(1);
   const [addSuccess, setAddSuccess] = useState(false);
   const [hasVariants, setHasVariants] = useState(false);
-  const [showVariantStack, setShowVariantStack] = useState(false);
   const [variantQuantities, setVariantQuantities] = useState({});
   const [variantFetchDone, setVariantFetchDone] = useState(false);
   
@@ -71,7 +70,6 @@ export function ProductCard({ product }) {
   useEffect(() => {
     setQuantity(1);
     setAddSuccess(false);
-    setShowVariantStack(false);
   }, [productId]);
 
   // ✅ Fetch variants when product changes
@@ -94,7 +92,6 @@ export function ProductCard({ product }) {
           setProductVariants(productDetails.variants);
           setSelectedVariant(productDetails.variants[0]);
           
-          // Initialize variant quantities
           const initialQuantities = {};
           productDetails.variants.forEach(v => {
             if (v.sku) {
@@ -140,7 +137,13 @@ export function ProductCard({ product }) {
     }
   };
 
-  const handleAddWithVariant = async (variant, qty = 1) => {
+  // ✅ FIXED: handleAddWithVariant with correct price handling
+  const handleAddWithVariant = async () => {
+    if (!selectedVariant) {
+      alert("Please select a variant");
+      return;
+    }
+    
     if (!user) {
       alert("Please login to add items to cart");
       navigate("/signin");
@@ -152,7 +155,11 @@ export function ProductCard({ product }) {
     setIsAdding(true);
     
     try {
-      const variantDisplay = getVariantDisplay(variant);
+      // ✅ Get correct prices from selected variant
+      const variantPrice = selectedVariant.price || product.price;
+      const variantComparePrice = selectedVariant.compare_price || product.originalPrice;
+      
+      const variantDisplay = getVariantDisplay(selectedVariant);
       const productName = variantDisplay ? `${product.name} - ${variantDisplay}` : product.name;
       
       await addToCart({
@@ -160,14 +167,18 @@ export function ProductCard({ product }) {
         _id: productId,
         slug: product.slug,
         name: productName,
-        price: variant.price || product.price,
-        originalPrice: variant.compare_price || product.originalPrice,
+        price: variantPrice, // ✅ Use variant price
+        originalPrice: variantComparePrice, // ✅ Use variant compare price
         image: product.image || product.main_image,
-        unit: variant.attributes?.[0]?.value || product.unit,
+        unit: selectedVariant.attributes?.[0]?.value || product.unit,
         discount: product.discount || 0,
-        variant_sku: variant.sku,
-      }, qty);
+        variant_sku: selectedVariant.sku,
+        variant_name: variantDisplay, // ✅ Add variant name for reference
+      }, modalQuantity);
       
+      setShowVariantModal(false);
+      setModalQuantity(1);
+      setSelectedVariant(null);
       setAddSuccess(true);
       setTimeout(() => setAddSuccess(false), 2000);
     } catch (error) {
@@ -216,6 +227,8 @@ export function ProductCard({ product }) {
     
     try {
       if (hasVariants) {
+        // ✅ Open variant modal instead of showing stack
+        setShowVariantModal(true);
         setIsAdding(false);
         isAddingRef.current = false;
         return;
@@ -387,90 +400,8 @@ export function ProductCard({ product }) {
     return variant.sku || "Variant";
   };
 
-  // ✅ Only show variants if we have them and fetch is done
-  const showVariants = hasVariants && productVariants.length > 0 && variantFetchDone;
-  const visibleVariants = showVariantStack ? productVariants : productVariants.slice(0, 1);
-  const hasMoreVariants = productVariants.length > 1;
-
-  // ✅ Variant row component
-  const VariantRow = ({ variant, idx }) => {
-    const variantSku = variant.sku;
-    const [variantQty, setVariantQty] = useState(() => variantQuantities[variantSku] || 1);
-    const [variantAdding, setVariantAdding] = useState(false);
-    const variantDisplay = getVariantDisplay(variant);
-    const variantPrice = variant.price || product.price;
-    const variantOriginalPrice = variant.compare_price || product.originalPrice;
-    const variantDiscount = variantOriginalPrice > variantPrice ? Math.round(((variantOriginalPrice - variantPrice) / variantOriginalPrice) * 100) : 0;
-    const cartQty = getVariantCartQuantity(variantSku);
-
-    useEffect(() => {
-      setVariantQty(variantQuantities[variantSku] || 1);
-    }, [variantQuantities, variantSku]);
-
-    return (
-      <div key={idx} className="flex items-center justify-between bg-gray-50/80 rounded-lg px-1.5 py-0.5">
-        <div className="flex items-center gap-1 flex-1 min-w-0">
-          <span className="text-[8px] font-medium text-gray-700 truncate max-w-[40px]">{variantDisplay}</span>
-          {variantDiscount > 0 && (
-            <span className="text-[7px] text-[#B6463A] font-semibold flex-shrink-0">{variantDiscount}%</span>
-          )}
-          <span className="text-[9px] font-bold text-[#3E7C47] flex-shrink-0">₹{variantPrice}</span>
-          {variantOriginalPrice > variantPrice && (
-            <span className="text-[7px] text-gray-400 line-through flex-shrink-0">₹{variantOriginalPrice}</span>
-          )}
-          {cartQty > 0 && (
-            <span className="text-[7px] text-[#3E7C47] font-medium flex-shrink-0 bg-[#3E7C47]/10 px-1 rounded-full">
-              {cartQty} in cart
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <div className="flex items-center bg-white rounded-lg overflow-hidden border border-gray-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const newQty = variantQty > 1 ? variantQty - 1 : 1;
-                setVariantQty(newQty);
-                handleVariantQuantityChange(variantSku, newQty);
-              }}
-              className="w-4 h-4 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <Minus className="w-2 h-2" />
-            </button>
-            <span className="w-4 text-center text-[8px] font-medium text-gray-700">
-              {variantQty}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const newQty = variantQty + 1;
-                setVariantQty(newQty);
-                handleVariantQuantityChange(variantSku, newQty);
-              }}
-              className="w-4 h-4 flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <Plus className="w-2 h-2" />
-            </button>
-          </div>
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              if (variantAdding) return;
-              setVariantAdding(true);
-              await handleAddWithVariant(variant, variantQty);
-              setVariantAdding(false);
-            }}
-            disabled={variantAdding}
-            className={`px-1.5 py-0.5 rounded text-[7px] font-medium transition-all duration-200 disabled:opacity-50 ${
-              variantAdding ? 'bg-green-600 text-white' : 'bg-[#3E7C47] text-white hover:bg-[#2E5C37]'
-            }`}
-          >
-            {variantAdding ? '✓' : 'ADD'}
-          </button>
-        </div>
-      </div>
-    );
-  };
+  // ✅ Only show SELECT button if product has variants
+  const showSelectButton = hasVariants && productVariants.length > 0 && variantFetchDone;
 
   return (
     <>
@@ -522,7 +453,7 @@ export function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Content - Compact */}
+        {/* Content */}
         <div className="p-2 flex-1 flex flex-col">
           {/* Product Name */}
           <h3 className="font-medium text-gray-800 text-xs line-clamp-2 mb-0.5 group-hover:text-[#3E7C47] transition-colors leading-tight">
@@ -541,90 +472,239 @@ export function ProductCard({ product }) {
             <span className="text-[8px] text-gray-400">({product.reviewCount || 0})</span>
           </div>
           
-          {/* ✅ Variants - Only show if hasVariants and variants array is not empty */}
-          {showVariants && productVariants.length > 0 ? (
-            <div className="mt-0.5 space-y-0.5">
-              {visibleVariants.map((variant, idx) => (
-                <VariantRow key={idx} variant={variant} idx={idx} />
-              ))}
-              
-              {hasMoreVariants && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowVariantStack(!showVariantStack);
-                  }}
-                  className="w-full text-center text-[7px] text-[#3E7C47] font-medium hover:underline flex items-center justify-center gap-0.5 py-0.5"
-                >
-                  {showVariantStack ? (
-                    <>Show Less <ChevronDown className="w-2.5 h-2.5 rotate-180" /></>
-                  ) : (
-                    <>+ {productVariants.length - 1} more sizes <ChevronDown className="w-2.5 h-2.5" /></>
-                  )}
-                </button>
+          {/* Price and Actions */}
+          <div className="flex items-center justify-between mt-auto pt-0.5">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-[#3E7C47]">{getDisplayPrice()}</span>
+              {product.originalPrice && product.originalPrice > product.price && (
+                <span className="text-[8px] text-gray-400 line-through">₹{product.originalPrice}</span>
               )}
             </div>
-          ) : (
-            // ✅ Regular product - single ADD button
-            <div className="flex items-center justify-between mt-auto pt-0.5">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-[#3E7C47]">{getDisplayPrice()}</span>
-                {product.originalPrice && product.originalPrice > product.price && (
-                  <span className="text-[8px] text-gray-400 line-through">₹{product.originalPrice}</span>
-                )}
-              </div>
-              
-              {!productInStock ? (
-                <span className="text-[9px] text-gray-400">Out of stock</span>
-              ) : (
-                <div className="flex items-center gap-0.5">
-                  <div className="flex items-center bg-gray-100 rounded-lg overflow-hidden">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (quantity > 1) handleQuantityChange(quantity - 1);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                    >
-                      <Minus className="w-2.5 h-2.5" />
-                    </button>
-                    <span className="w-5 text-center text-[9px] font-medium text-gray-700">
-                      {quantity}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuantityChange(quantity + 1);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                    >
-                      <Plus className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                  
+            
+            {!productInStock ? (
+              <span className="text-[9px] text-gray-400">Out of stock</span>
+            ) : showSelectButton ? (
+              // ✅ SELECT button for variants
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowVariantModal(true);
+                }}
+                className="px-3 py-1 bg-[#3E7C47] text-white rounded-md text-[10px] font-medium hover:bg-[#2E5C37] transition-all duration-200 flex items-center gap-1"
+              >
+                <Package className="w-3 h-3" />
+                SELECT
+              </button>
+            ) : (
+              // ✅ Regular ADD button for non-variant products
+              <div className="flex items-center gap-0.5">
+                <div className="flex items-center bg-gray-100 rounded-lg overflow-hidden">
                   <button
-                    onClick={handleAddToCart}
-                    disabled={isAdding || isLoadingVariants}
-                    className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-0.5 ${
-                      addSuccess 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
-                        : 'bg-[#3E7C47] text-white hover:bg-[#2E5C37]'
-                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (quantity > 1) handleQuantityChange(quantity - 1);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
                   >
-                    {isAdding || isLoadingVariants ? (
-                      <div className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : addSuccess ? (
-                      <>✓</>
-                    ) : (
-                      <><ShoppingCart className="w-2.5 h-2.5" /> ADD</>
-                    )}
+                    <Minus className="w-2.5 h-2.5" />
+                  </button>
+                  <span className="w-5 text-center text-[9px] font-medium text-gray-700">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleQuantityChange(quantity + 1);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
                   </button>
                 </div>
-              )}
-            </div>
-          )}
+                
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isAdding || isLoadingVariants}
+                  className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-0.5 ${
+                    addSuccess 
+                      ? 'bg-green-600 text-white hover:bg-green-700' 
+                      : 'bg-[#3E7C47] text-white hover:bg-[#2E5C37]'
+                  }`}
+                >
+                  {isAdding || isLoadingVariants ? (
+                    <div className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : addSuccess ? (
+                    <>✓</>
+                  ) : (
+                    <><ShoppingCart className="w-2.5 h-2.5" /> ADD</>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ✅ Variant Selection Modal - FIXED with proper price display */}
+      {showVariantModal && productVariants.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowVariantModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Select {product.name}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Choose your preferred variant</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowVariantModal(false);
+                  setModalQuantity(1);
+                  setSelectedVariant(productVariants[0] || null);
+                }}
+                className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {/* Product Preview */}
+              <div className="flex items-center gap-4 mb-5 bg-gray-50 rounded-xl p-3">
+                <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center overflow-hidden">
+                  <img
+                    src={imageUrl}
+                    alt={product.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-800">{product.name}</h4>
+                  <p className="text-xs text-gray-500">Select a variant below</p>
+                </div>
+              </div>
+
+              {/* Variant Selection - ✅ FIXED: Show price on each variant */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Size
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {productVariants.map((variant, idx) => {
+                    const variantDisplay = getVariantDisplay(variant);
+                    const variantPrice = variant.price || product.price;
+                    const variantOriginalPrice = variant.compare_price || product.originalPrice;
+                    const variantDiscount = variantOriginalPrice > variantPrice ? Math.round(((variantOriginalPrice - variantPrice) / variantOriginalPrice) * 100) : 0;
+                    const variantStock = variant.stock_quantity || 0;
+                    const isOutOfStock = variantStock <= 0;
+                    const isSelected = selectedVariant?.sku === variant.sku;
+                    
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => !isOutOfStock && setSelectedVariant(variant)}
+                        disabled={isOutOfStock}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          isSelected
+                            ? "bg-[#3E7C47] text-white shadow-md"
+                            : isOutOfStock
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
+                            : "bg-gray-100 text-gray-700 hover:bg-[#3E7C47]/10 border border-gray-200"
+                        }`}
+                      >
+                        {variantDisplay}
+                        {/* ✅ Show price on variant chip */}
+                        <span className="ml-1 text-[10px] font-normal">
+                          ₹{variantPrice}
+                        </span>
+                        {variantDiscount > 0 && !isOutOfStock && (
+                          <span className="ml-1 text-[10px] text-[#B6463A]">-{variantDiscount}%</span>
+                        )}
+                        {isOutOfStock && <span className="ml-1 text-[10px]">(Out)</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Quantity Selector */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quantity
+                </label>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
+                    className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-xl font-semibold w-12 text-center">
+                    {modalQuantity}
+                  </span>
+                  <button
+                    onClick={() => setModalQuantity(modalQuantity + 1)}
+                    className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Price Display - ✅ FIXED: Show correct variant price */}
+              <div className="mb-5 p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Total Price</span>
+                  <div className="text-right">
+                    <span className="text-xl font-bold text-[#3E7C47]">
+                      ₹{(selectedVariant?.price || product.price) * modalQuantity}
+                    </span>
+                    {selectedVariant?.compare_price && selectedVariant.compare_price > (selectedVariant?.price || product.price) && (
+                      <p className="text-xs text-gray-400 line-through">
+                        ₹{selectedVariant.compare_price * modalQuantity}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {selectedVariant?.compare_price && selectedVariant.compare_price > (selectedVariant?.price || product.price) && (
+                  <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">You Save</span>
+                    <span className="text-sm font-medium text-[#B6463A]">
+                      ₹{(selectedVariant.compare_price - (selectedVariant?.price || product.price)) * modalQuantity}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons - ✅ FIXED: Show correct total in button */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowVariantModal(false);
+                    setModalQuantity(1);
+                    setSelectedVariant(productVariants[0] || null);
+                  }}
+                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddWithVariant}
+                  disabled={!selectedVariant || (selectedVariant.stock_quantity || 0) <= 0 || isAdding}
+                  className="flex-1 py-3 bg-[#3E7C47] text-white rounded-xl text-sm font-semibold hover:bg-[#2E5C37] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  {isAdding ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+                  ) : (
+                    // ✅ Use selected variant price for total
+                    `Add to Cart • ₹${(selectedVariant?.price || product.price) * modalQuantity}`
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
